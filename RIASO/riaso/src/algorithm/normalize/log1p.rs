@@ -18,16 +18,16 @@ pub fn log1p(data: &mut SoData, write_layer: bool) {
     }
 }
 
-fn log1p_dense(arr: &mut Array2<f64>) {
+fn log1p_dense(arr: &mut Array2<f32>) {
     if !arr.is_standard_layout() {
         *arr = arr.as_standard_layout().into_owned();
     }
     let slice = arr.as_slice_mut().expect("dense matrix must be contiguous");
-    slice.par_iter_mut().for_each(|v| *v = (*v + 1.0).ln());
+    slice.par_iter_mut().for_each(|v| *v = (*v + 1.0f32).ln());
 }
 
-fn log1p_sparse(csr: &mut CsrMatrix<f64>) {
+fn log1p_sparse(csr: &mut CsrMatrix<f32>) {
     csr.values_mut()
         .par_iter_mut()
-        .for_each(|v| *v = (*v + 1.0).ln());
+        .for_each(|v| *v = (*v + 1.0f32).ln());
 }

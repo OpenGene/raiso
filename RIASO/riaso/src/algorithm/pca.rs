@@ -52,27 +52,30 @@ impl Default for PcaParams {
 pub fn pca(x: &ExpMatrix, params: &PcaParams) -> Result<PcaResult> {
     match params.svd_solver {
         SvdSolver::Auto => match x {
-            ExpMatrix::Sparse(csr) => pca_sparse(csr, params),
+            ExpMatrix::Sparse(csr) => pca_sparse(&crate::parallel::csr_f32_to_f64(csr), params),
             ExpMatrix::Dense(arr) => {
-                if auto_picks_randomized(arr, params.n_components) {
-                    pca_randomized(arr, params)
+                let arr = arr.mapv(|v| v as f64);
+                if auto_picks_randomized(&arr, params.n_components) {
+                    pca_randomized(&arr, params)
                 } else {
-                    pca_dense(arr, params)
+                    pca_dense(&arr, params)
                 }
             }
         },
         SvdSolver::Full => match x {
-            ExpMatrix::Dense(arr) => pca_dense(arr, params),
-            ExpMatrix::Sparse(csr) => pca_dense(&csr_to_dense(csr), params),
+            ExpMatrix::Dense(arr) => pca_dense(&arr.mapv(|v| v as f64), params),
+            ExpMatrix::Sparse(csr) => {
+                pca_dense(&csr_to_dense(&crate::parallel::csr_f32_to_f64(csr)), params)
+            }
         },
         SvdSolver::Arpack => match x {
-            ExpMatrix::Dense(arr) => pca_sparse(&dense_to_csr(arr), params),
-            ExpMatrix::Sparse(csr) => pca_sparse(csr, params),
+            ExpMatrix::Dense(arr) => pca_sparse(&dense_to_csr(&arr.mapv(|v| v as f64)), params),
+            ExpMatrix::Sparse(csr) => pca_sparse(&crate::parallel::csr_f32_to_f64(csr), params),
         },
 
         SvdSolver::Randomized => match x {
-            ExpMatrix::Dense(arr) => pca_randomized(arr, params),
-            ExpMatrix::Sparse(csr) => pca_sparse(csr, params),
+            ExpMatrix::Dense(arr) => pca_randomized(&arr.mapv(|v| v as f64), params),
+            ExpMatrix::Sparse(csr) => pca_sparse(&crate::parallel::csr_f32_to_f64(csr), params),
         },
     }
 }
@@ -175,7 +178,10 @@ fn dense_to_csr(arr: &Array2<f64>) -> CsrMatrix<f64> {
         .expect("dense_to_csr: valid CSR")
 }
 
-pub(crate) fn sparse_select_columns(csr: &CsrMatrix<f64>, selected: &[usize]) -> CsrMatrix<f64> {
+pub(crate) fn sparse_select_columns<T>(csr: &CsrMatrix<T>, selected: &[usize]) -> CsrMatrix<T>
+where
+    T: nalgebra::Scalar + Copy + Default + Send + Sync,
+{
     let nrows = csr.nrows();
     let offsets = csr.row_offsets();
     let cols = csr.col_indices();
@@ -210,7 +216,7 @@ pub(crate) fn sparse_select_columns(csr: &CsrMatrix<f64>, selected: &[usize]) ->
         out_offsets[r + 1] = acc;
     }
     let mut out_cols = vec![0usize; acc];
-    let mut out_vals = vec![0f64; acc];
+    let mut out_vals = vec![T::default(); acc];
 
     let cols_ptr = SendPtr(out_cols.as_mut_ptr());
     let vals_ptr = SendPtr(out_vals.as_mut_ptr());

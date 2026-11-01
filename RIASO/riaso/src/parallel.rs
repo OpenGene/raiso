@@ -10,10 +10,44 @@ impl<T> SendPtr<T> {
 unsafe impl<T: Send> Send for SendPtr<T> {}
 unsafe impl<T: Send> Sync for SendPtr<T> {}
 
-pub(crate) fn csr_to_dense(csr: &nalgebra_sparse::csr::CsrMatrix<f64>) -> ndarray::Array2<f64> {
+
+static THREADS: std::sync::Mutex<usize> = std::sync::Mutex::new(0);
+
+
+#[allow(dead_code)]
+pub(crate) fn set_rayon_threads(n: usize) {
+    *THREADS.lock().unwrap() = n;
+}
+
+
+pub(crate) fn init_rayon(threads: usize) {
+    use std::sync::Once;
+    static ONCE: Once = Once::new();
+    ONCE.call_once(|| {
+        let n = *THREADS.lock().unwrap();
+        let n = if n > 0 {
+            n
+        } else if threads > 0 {
+            threads
+        } else {
+            std::thread::available_parallelism()
+                .map(|n| n.get())
+                .unwrap_or(1)
+                .min(32)
+        };
+        let _ = rayon::ThreadPoolBuilder::new()
+            .num_threads(n)
+            .build_global();
+    });
+}
+
+pub(crate) fn csr_to_dense<T>(csr: &nalgebra_sparse::csr::CsrMatrix<T>) -> ndarray::Array2<T>
+where
+    T: num_traits::Float + nalgebra::Scalar + Send + Sync,
+{
     use rayon::prelude::*;
     let (nrows, ncols) = (csr.nrows(), csr.ncols());
-    let mut dense = ndarray::Array2::<f64>::zeros((nrows, ncols));
+    let mut dense = ndarray::Array2::<T>::zeros((nrows, ncols));
     let offsets = csr.row_offsets();
     let cols = csr.col_indices();
     let vals = csr.values();
@@ -25,6 +59,17 @@ pub(crate) fn csr_to_dense(csr: &nalgebra_sparse::csr::CsrMatrix<f64>) -> ndarra
         }
     });
     dense
+}
+
+pub(crate) fn csr_f32_to_f64(
+    csr: &nalgebra_sparse::csr::CsrMatrix<f32>,
+) -> nalgebra_sparse::csr::CsrMatrix<f64> {
+    let (nrows, ncols) = (csr.nrows(), csr.ncols());
+    let offsets = csr.row_offsets().to_vec();
+    let cols = csr.col_indices().to_vec();
+    let vals: Vec<f64> = csr.values().iter().map(|&v| v as f64).collect();
+    nalgebra_sparse::csr::CsrMatrix::try_from_csr_data(nrows, ncols, offsets, cols, vals)
+        .expect("csr_f32_to_f64: valid CSR")
 }
 
 pub(crate) fn par_min_max(vals: &[f64]) -> (f64, f64) {

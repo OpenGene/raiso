@@ -193,8 +193,8 @@ pub fn singler_cluster(
 
 fn densify(exp: &ExpMatrix) -> Array2<f64> {
     match exp {
-        ExpMatrix::Dense(m) => m.clone(),
-        ExpMatrix::Sparse(csr) => csr_to_dense(csr),
+        ExpMatrix::Dense(m) => m.mapv(|v| v as f64),
+        ExpMatrix::Sparse(csr) => csr_to_dense(&crate::parallel::csr_f32_to_f64(csr)),
     }
 }
 

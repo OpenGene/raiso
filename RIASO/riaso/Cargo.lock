@@ -2471,6 +2471,7 @@ dependencies = [
  "nalgebra",
  "nalgebra-sparse",
  "ndarray",
+ "num-traits",
  "plotters",
  "polars",
  "rayon",
