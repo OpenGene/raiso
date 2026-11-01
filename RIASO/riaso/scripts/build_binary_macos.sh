@@ -32,7 +32,19 @@ mkdir -p "$out/bin" "$out/lib" "$out/fonts" "$out/etc/fonts"
 cp "$CARGO_TARGET_DIR/$target/release/riaso" "$out/bin/riaso"
 chmod 755 "$out/bin/riaso"
 # Let delocate resolve @rpath dependencies from the build environment.
-DYLD_LIBRARY_PATH="${CONDA_PREFIX}/lib${DYLD_LIBRARY_PATH:+:${DYLD_LIBRARY_PATH}}" delocate-path --executable-path "$out/bin" -L lib "$out"
+# Re-scan copied dylibs so their transitive dependencies are bundled too.
+for pass in {1..16}; do
+    before=$(find "$out/lib" -type f | wc -l | tr -d ' ')
+    DYLD_LIBRARY_PATH="${CONDA_PREFIX}/lib${DYLD_LIBRARY_PATH:+:${DYLD_LIBRARY_PATH}}" delocate-path --executable-path "$out/bin" -L lib "$out"
+    after=$(find "$out/lib" -type f | wc -l | tr -d ' ')
+    if [[ "$before" == "$after" ]]; then
+        break
+    fi
+    if [[ "$pass" == 16 ]]; then
+        echo 'Dynamic-library dependency collection did not converge' >&2
+        exit 1
+    fi
+done
 
 python - "$CONDA_PREFIX" "$out" <<'PY'
 from pathlib import Path
