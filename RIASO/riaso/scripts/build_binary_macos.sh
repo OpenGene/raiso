@@ -11,7 +11,7 @@ case "$(uname -m)" in
     *) echo 'Unsupported macOS architecture' >&2; exit 1 ;;
 esac
 
-export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-14.0}"
+export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-11.0}"
 export HDF5_DIR="${CONDA_PREFIX}"
 export PKG_CONFIG_PATH="${CONDA_PREFIX}/lib/pkgconfig${PKG_CONFIG_PATH:+:${PKG_CONFIG_PATH}}"
 export LIBRARY_PATH="${CONDA_PREFIX}/lib${LIBRARY_PATH:+:${LIBRARY_PATH}}"
@@ -46,6 +46,25 @@ for pass in {1..16}; do
     fi
 done
 
+python - "$out" <<'PY'
+from pathlib import Path
+import re
+import subprocess
+import sys
+
+root = Path(sys.argv[1])
+for library in [root / "bin/riaso", *sorted((root / "lib").glob("*.dylib"))]:
+    commands = subprocess.check_output(["otool", "-l", str(library)], text=True)
+    versions = re.findall(r"cmd LC_BUILD_VERSION\b(?:(?!\n\s*Load command).)*?\bminos\s+(\d+(?:\.\d+)+)", commands, re.S)
+    versions += re.findall(r"cmd LC_VERSION_MIN_MACOSX\b.*?\bversion\s+(\d+(?:\.\d+)+)", commands, re.S)
+    if not versions:
+        raise SystemExit(f"Cannot determine minimum macOS version: {library}")
+    for version in versions:
+        parts = tuple(map(int, version.split(".")))
+        if (parts + (0, 0))[:3] > (11, 0, 0):
+            raise SystemExit(f"{library} requires macOS {version}, expected <=11.0")
+print("Verified bundled Mach-O deployment versions <= macOS 11.0")
+PY
 python - "$CONDA_PREFIX" "$out" <<'PY'
 from pathlib import Path
 import shutil
