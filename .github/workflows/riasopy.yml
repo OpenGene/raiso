@@ -178,6 +178,11 @@ jobs:
           environment-file: RIASO/riasopy/environment-macos.yml
           activate-environment: riasopy-macos
           auto-activate-base: false
+      - name: select Accelerate math libraries
+        run: |
+          conda install -y --override-channels -c conda-forge \
+            'libblas=*=*_newaccelerate' 'libcblas=*=*_newaccelerate' 'liblapack=*=*_newaccelerate'
+          conda list --show-channel-urls
       - name: build macOS wheel
         run: bash RIASO/riasopy/scripts/build_wheel_macos.sh
       - name: install and test in a separate environment
