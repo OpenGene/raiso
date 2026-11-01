@@ -26,6 +26,27 @@ else
     export CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER="$CC"
 fi
 
+python - <<'PY'
+import json
+import os
+from pathlib import Path
+import subprocess
+
+prefix = Path(os.environ["CONDA_PREFIX"])
+for name in ("libblas", "libcblas", "liblapack"):
+    records = list((prefix / "conda-meta").glob(f"{name}-*.json"))
+    if len(records) != 1:
+        raise SystemExit(f"Expected one installed {name} record: {records}")
+    record = json.loads(records[0].read_text())
+    print(f"{name}: {record['version']} {record['build']}", flush=True)
+    if not record["build"].endswith("_newaccelerate"):
+        raise SystemExit(f"{name} must use newaccelerate; recreate/update environment-macos.yml")
+for name in ("libblas.3.dylib", "liblapack.3.dylib", "libarpack.2.dylib"):
+    library = prefix / "lib" / name
+    print(f"{library} -> {library.resolve()}", flush=True)
+    subprocess.run(["otool", "-L", str(library)], check=True)
+PY
+
 python scripts/prepare_share.py
 trap 'python scripts/prepare_share.py --clean' EXIT
 raw=$(mktemp -d "${TMPDIR:-/tmp}/riasopy-wheel.XXXXXX")
