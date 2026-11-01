@@ -32,6 +32,7 @@ raw=$(mktemp -d "${TMPDIR:-/tmp}/riasopy-wheel.XXXXXX")
 trap 'python scripts/prepare_share.py --clean; rm -rf "$raw"' EXIT
 maturin build --release --locked --target "$target" --interpreter "$PYO3_PYTHON" --out "$raw"
 mkdir -p target/wheels-macos
-delocate-wheel --require-archs "$arch" --executable-path "$CONDA_PREFIX/bin" \
+# Let delocate resolve @rpath dependencies from the build environment.
+DYLD_LIBRARY_PATH="${CONDA_PREFIX}/lib${DYLD_LIBRARY_PATH:+:${DYLD_LIBRARY_PATH}}" delocate-wheel --require-archs "$arch" --executable-path "$CONDA_PREFIX/bin" \
     -w target/wheels-macos "$raw"/riasopy-*.whl
 printf 'Wheels: %s/target/wheels-macos\n' "$PWD"
