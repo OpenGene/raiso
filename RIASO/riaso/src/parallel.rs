@@ -10,15 +10,12 @@ impl<T> SendPtr<T> {
 unsafe impl<T: Send> Send for SendPtr<T> {}
 unsafe impl<T: Send> Sync for SendPtr<T> {}
 
-
 static THREADS: std::sync::Mutex<usize> = std::sync::Mutex::new(0);
-
 
 #[allow(dead_code)]
 pub(crate) fn set_rayon_threads(n: usize) {
     *THREADS.lock().unwrap() = n;
 }
-
 
 pub(crate) fn init_rayon(threads: usize) {
     use std::sync::Once;
