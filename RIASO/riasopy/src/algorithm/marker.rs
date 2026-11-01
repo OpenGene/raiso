@@ -160,14 +160,7 @@ struct ClusterAcc {
     cnt_pos_r: Vec<usize>,
 }
 
-fn accumulate_cluster(x: &ExpMatrix, labels: &[i64], cid: i64) -> ClusterAcc {
-    match x {
-        ExpMatrix::Dense(arr) => accumulate_cluster_dense(arr, labels, cid),
-        ExpMatrix::Sparse(csr) => accumulate_cluster_sparse(csr, labels, cid),
-    }
-}
-
-fn accumulate_cluster_dense(x: &Array2<f64>, labels: &[i64], cid: i64) -> ClusterAcc {
+fn accumulate_cluster_dense(x: &Array2<f32>, labels: &[i64], cid: i64) -> ClusterAcc {
     let n_genes = x.ncols();
     let n_cells = x.nrows();
     let mut acc = ClusterAcc {
@@ -187,7 +180,7 @@ fn accumulate_cluster_dense(x: &Array2<f64>, labels: &[i64], cid: i64) -> Cluste
             acc.n_g += 1;
             let row = &x.row(c);
             for (g, &v) in row.iter().enumerate() {
-                acc.sum_g[g] += v;
+                acc.sum_g[g] += v as f64;
                 if v > 0.0 {
                     acc.cnt_pos_g[g] += 1;
                 }
@@ -196,7 +189,7 @@ fn accumulate_cluster_dense(x: &Array2<f64>, labels: &[i64], cid: i64) -> Cluste
             acc.n_r += 1;
             let row = &x.row(c);
             for (g, &v) in row.iter().enumerate() {
-                acc.sum_r[g] += v;
+                acc.sum_r[g] += v as f64;
                 if v > 0.0 {
                     acc.cnt_pos_r[g] += 1;
                 }
@@ -212,13 +205,13 @@ fn accumulate_cluster_dense(x: &Array2<f64>, labels: &[i64], cid: i64) -> Cluste
         if labels[c] == cid {
             let row = &x.row(c);
             for (g, &v) in row.iter().enumerate() {
-                let d = v - mean_g[g];
+                let d = v as f64 - mean_g[g];
                 acc.sq_g[g] += d * d;
             }
         } else {
             let row = &x.row(c);
             for (g, &v) in row.iter().enumerate() {
-                let d = v - mean_r[g];
+                let d = v as f64 - mean_r[g];
                 acc.sq_r[g] += d * d;
             }
         }
@@ -227,7 +220,7 @@ fn accumulate_cluster_dense(x: &Array2<f64>, labels: &[i64], cid: i64) -> Cluste
     acc
 }
 
-fn accumulate_cluster_sparse(csr: &CsrMatrix<f64>, labels: &[i64], cid: i64) -> ClusterAcc {
+fn accumulate_cluster_sparse(csr: &CsrMatrix<f32>, labels: &[i64], cid: i64) -> ClusterAcc {
     let n_genes = csr.ncols();
     let n_cells = csr.nrows();
     let mut acc = ClusterAcc {
@@ -258,10 +251,10 @@ fn accumulate_cluster_sparse(csr: &CsrMatrix<f64>, labels: &[i64], cid: i64) -> 
             let g = cols[idx];
             let v = vals[idx];
             if labels[c] == cid {
-                acc.sum_g[g] += v;
+                acc.sum_g[g] += v as f64;
                 acc.cnt_pos_g[g] += 1;
             } else {
-                acc.sum_r[g] += v;
+                acc.sum_r[g] += v as f64;
                 acc.cnt_pos_r[g] += 1;
             }
         }
@@ -275,10 +268,10 @@ fn accumulate_cluster_sparse(csr: &CsrMatrix<f64>, labels: &[i64], cid: i64) -> 
             let g = cols[idx];
             let v = vals[idx];
             if labels[c] == cid {
-                let d = v - mean_g[g];
+                let d = v as f64 - mean_g[g];
                 acc.sq_g[g] += d * d;
             } else {
-                let d = v - mean_r[g];
+                let d = v as f64 - mean_r[g];
                 acc.sq_r[g] += d * d;
             }
         }
@@ -366,7 +359,10 @@ pub fn marker_genes(x: &ExpMatrix, labels: &[i64], params: &MarkerParams) -> Res
     let clusters: Vec<ClusterMarkerResult> = cluster_ids
         .par_iter()
         .map(|&cid| {
-            let acc = accumulate_cluster(x, labels, cid);
+            let acc = match x {
+                ExpMatrix::Dense(arr) => accumulate_cluster_dense(arr, labels, cid),
+                ExpMatrix::Sparse(csr) => accumulate_cluster_sparse(csr, labels, cid),
+            };
             let ng = acc.n_g as f64;
             let nr = acc.n_r as f64;
 

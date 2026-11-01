@@ -12,8 +12,8 @@ use crate::parallel::SendPtr;
 
 #[derive(Debug, Clone)]
 pub enum ExpMatrix {
-    Dense(Array2<f64>),
-    Sparse(CsrMatrix<f64>),
+    Dense(Array2<f32>),
+    Sparse(CsrMatrix<f32>),
 }
 
 impl ExpMatrix {
@@ -37,7 +37,7 @@ impl ExpMatrix {
 
     pub fn to_dense(&self) -> Array2<f64> {
         match self {
-            Self::Dense(arr) => arr.clone(),
+            Self::Dense(arr) => arr.mapv(|v| v as f64),
             Self::Sparse(csr) => {
                 let (nrows, ncols) = (csr.nrows(), csr.ncols());
                 let mut dense = Array2::<f64>::zeros((nrows, ncols));
@@ -50,7 +50,7 @@ impl ExpMatrix {
                     let row_ptr = unsafe { ptr.add(r * ncols) };
                     for i in offsets[r]..offsets[r + 1] {
                         unsafe {
-                            *row_ptr.add(cols[i]) = vals[i];
+                            *row_ptr.add(cols[i]) = vals[i] as f64;
                         }
                     }
                 });
@@ -213,18 +213,18 @@ impl SoData {
 
         match exp {
             ExpMatrix::Dense(arr) => {
-                let rows: Array2<f64> = match obs_indices {
+                let rows: Array2<f32> = match obs_indices {
                     Some(ix) => arr.select(Axis(0), ix).to_owned(),
                     None => arr.clone(),
                 };
                 let result = match var_indices {
-                    Some(ix) => rows.select(Axis(1), ix).to_owned(),
+                    Some(ix) => rows.select(Axis(1), ix).as_standard_layout().into_owned(),
                     None => rows,
                 };
                 Some(ExpMatrix::Dense(result))
             }
             ExpMatrix::Sparse(csr) => {
-                let rows: CsrMatrix<f64> = match obs_indices {
+                let rows: CsrMatrix<f32> = match obs_indices {
                     Some(ix) => csr_select_rows(csr, ix),
                     None => csr.clone(),
                 };
@@ -274,7 +274,7 @@ impl SoData {
         if let Some(ref mut exp) = self.exp_matrix {
             match exp {
                 ExpMatrix::Dense(ref mut arr) => {
-                    *arr = arr.select(Axis(1), &keep);
+                    *arr = arr.select(Axis(1), &keep).as_standard_layout().into_owned();
                 }
                 ExpMatrix::Sparse(ref mut csr) => {
                     *csr = csr_select_cols(csr, &keep);
@@ -388,7 +388,7 @@ fn complement_to_remove(total: usize, keep: &[usize]) -> Vec<usize> {
     (0..total).filter(|i| !keep_set.contains(i)).collect()
 }
 
-fn csr_select_rows(csr: &CsrMatrix<f64>, keep: &[usize]) -> CsrMatrix<f64> {
+fn csr_select_rows(csr: &CsrMatrix<f32>, keep: &[usize]) -> CsrMatrix<f32> {
     let offsets = csr.row_offsets();
     let cols = csr.col_indices();
     let vals = csr.values();
@@ -412,7 +412,7 @@ fn csr_select_rows(csr: &CsrMatrix<f64>, keep: &[usize]) -> CsrMatrix<f64> {
         .expect("csr_select_rows: valid CSR")
 }
 
-fn csr_select_cols(csr: &CsrMatrix<f64>, keep: &[usize]) -> CsrMatrix<f64> {
+fn csr_select_cols(csr: &CsrMatrix<f32>, keep: &[usize]) -> CsrMatrix<f32> {
     let offsets = csr.row_offsets();
     let cols = csr.col_indices();
     let vals = csr.values();
@@ -444,7 +444,7 @@ fn csr_select_cols(csr: &CsrMatrix<f64>, keep: &[usize]) -> CsrMatrix<f64> {
     let nnz_new = new_offsets[nrows];
 
     let mut new_cols = vec![0usize; nnz_new];
-    let mut new_vals = vec![0f64; nnz_new];
+    let mut new_vals = vec![0f32; nnz_new];
     let new_cols_ptr = SendPtr(new_cols.as_mut_ptr());
     let new_vals_ptr = SendPtr(new_vals.as_mut_ptr());
     (0..nrows).into_par_iter().for_each(|row| {

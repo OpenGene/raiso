@@ -81,7 +81,7 @@ fn exp_metrics(
             .into_par_iter()
             .fold(zero, |mut a, r| {
                 for c in 0..n_cols {
-                    let v = arr[[r, c]];
+                    let v = arr[[r, c]] as f64;
                     if v != 0.0 {
                         a.0[r] += v;
                         a.1[r] += 1;
@@ -115,7 +115,7 @@ fn exp_metrics(
                 .fold(zero, |mut a, r| {
                     for i in offsets[r]..offsets[r + 1] {
                         let c = cols[i];
-                        let v = vals[i];
+                        let v = vals[i] as f64;
                         if v != 0.0 {
                             a.0[r] += v;
                             a.1[r] += 1;

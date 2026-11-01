@@ -36,7 +36,7 @@ fn greens_colormap(t: f64) -> RGBColor {
 
 pub(crate) fn densify(exp: &ExpMatrix) -> Array2<f64> {
     match exp {
-        ExpMatrix::Dense(d) => d.clone(),
+        ExpMatrix::Dense(d) => d.mapv(|v| v as f64),
         ExpMatrix::Sparse(csr) => {
             let (nrows, ncols) = (csr.nrows(), csr.ncols());
             let mut dense = Array2::<f64>::zeros((nrows, ncols));
@@ -48,7 +48,7 @@ pub(crate) fn densify(exp: &ExpMatrix) -> Array2<f64> {
                 let row_ptr = unsafe { ptr.add(row * ncols) };
                 for idx in offsets[row]..offsets[row + 1] {
                     unsafe {
-                        *row_ptr.add(cols[idx]) = vals[idx];
+                        *row_ptr.add(cols[idx]) = vals[idx] as f64;
                     }
                 }
             });

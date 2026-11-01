@@ -23,6 +23,7 @@ nalgebra-sparse = "=0.11.0"
 polars = { version = "=0.45.1", features = ["lazy", "csv"] }
 serde = { version = "=1.0.228", features = ["derive"] }
 serde_json = "=1.0.150"
+num-traits = "=0.2.19"
 anyhow = "=1.0.103"
 hdf5 = { package = "hdf5-metno", version = "=0.12.6", features = ["blosc", "blosc-zstd"] }
 arpack = "=0.0.2"
