@@ -31,7 +31,8 @@ out="$PWD/dist-macos/$target"
 mkdir -p "$out/bin" "$out/lib" "$out/fonts" "$out/etc/fonts"
 cp "$CARGO_TARGET_DIR/$target/release/riaso" "$out/bin/riaso"
 chmod 755 "$out/bin/riaso"
-delocate-path --executable-path "$out/bin" -L lib "$out"
+# Let delocate resolve @rpath dependencies from the build environment.
+DYLD_LIBRARY_PATH="${CONDA_PREFIX}/lib${DYLD_LIBRARY_PATH:+:${DYLD_LIBRARY_PATH}}" delocate-path --executable-path "$out/bin" -L lib "$out"
 
 python - "$CONDA_PREFIX" "$out" <<'PY'
 from pathlib import Path
