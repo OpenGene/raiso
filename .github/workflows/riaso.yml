@@ -27,7 +27,7 @@ env:
 
 jobs:
   build:
-    name: dist
+    name: dist (Linux)
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
@@ -103,3 +103,56 @@ jobs:
         with:
           name: riaso-${{ runner.os }}-${{ runner.arch }}
           path: RIASO/riaso/dist
+
+  build-macos:
+    name: dist (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14
+            arch: arm64
+            target: aarch64-apple-darwin
+          - runner: macos-15-intel
+            arch: x86_64
+            target: x86_64-apple-darwin
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash -el {0}
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "14.0"
+      CARGO_BUILD_JOBS: "2"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          targets: ${{ matrix.target }}
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-version: latest
+          environment-file: RIASO/riaso/environment-macos.yml
+          activate-environment: riaso-macos
+          auto-activate-base: false
+      - name: build distribution
+        run: bash RIASO/riaso/scripts/build_binary_macos.sh
+      - name: test relocation outside the build environment
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          relocated=$(mktemp -d)
+          cp -R "RIASO/riaso/dist-macos/$TARGET/." "$relocated/"
+          env -i HOME="$HOME" "$relocated/riaso" --version
+          env -i HOME="$HOME" "$relocated/riaso" --HELP > /dev/null
+      - name: archive distribution preserving executable bits
+        env:
+          TARGET: ${{ matrix.target }}
+          ARCH: ${{ matrix.arch }}
+        run: tar -czf "riaso-macos-$ARCH.tar.gz" -C "RIASO/riaso/dist-macos/$TARGET" .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: riaso-macos-${{ matrix.arch }}
+          path: riaso-macos-${{ matrix.arch }}.tar.gz
+          if-no-files-found: error
