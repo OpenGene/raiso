@@ -1,0 +1,11 @@
+name: riaso-macos
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pkg-config
+  - hdf5=1.14.6
+  - arpack
+  - fontconfig
+  - font-ttf-dejavu
+  - delocate>=0.13
