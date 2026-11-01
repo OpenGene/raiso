@@ -8,9 +8,10 @@ dependencies:
   - pkg-config
   - hdf5=1.14.6
   - arpack
-  - libblas=*=*_newaccelerate
-  - libcblas=*=*_newaccelerate
-  - liblapack=*=*_newaccelerate
+  - libblas=*=*_openblas
+  - libcblas=*=*_openblas
+  - liblapack=*=*_openblas
+  - libopenblas=*=pthreads*
   - fontconfig
   - font-ttf-dejavu
   - delocate>=0.13
