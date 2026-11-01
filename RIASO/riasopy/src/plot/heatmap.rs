@@ -537,9 +537,11 @@ fn prepare_common(
     top_n: usize,
     groups: Option<&[i64]>,
 ) -> anyhow::Result<CommonPrepare> {
-    let dense = crate::algorithm::marker::marker_input(sd).ok_or_else(|| {
-        anyhow!("no expression matrix (exp_matrix is missing): read the data first")
-    })?;
+    let dense = crate::algorithm::marker::marker_input(sd)
+        .ok_or_else(|| {
+            anyhow!("no expression matrix (exp_matrix is missing): read the data first")
+        })?
+        .to_dense();
     let genes = sd.symbol_names();
     let labels = extract_clusters(sd, cluster_key)?;
 
