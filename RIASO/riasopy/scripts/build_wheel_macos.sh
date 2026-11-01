@@ -35,4 +35,18 @@ mkdir -p target/wheels-macos
 # Let delocate resolve @rpath dependencies from the build environment.
 DYLD_LIBRARY_PATH="${CONDA_PREFIX}/lib${DYLD_LIBRARY_PATH:+:${DYLD_LIBRARY_PATH}}" delocate-wheel --require-archs "$arch" --executable-path "$CONDA_PREFIX/bin" \
     -w target/wheels-macos "$raw"/riasopy-*.whl
+python - <<'PY'
+from pathlib import Path
+import zipfile
+
+for wheel in Path("target/wheels-macos").glob("riasopy-*.whl"):
+    with zipfile.ZipFile(wheel) as archive:
+        runtimes = [name for name in archive.namelist()
+                    if name.endswith(".dylib") and
+                    any(token in Path(name).name.lower()
+                        for token in ("libomp", "libiomp", "libgomp"))]
+    if runtimes:
+        raise SystemExit(f"Unexpected bundled OpenMP runtime in {wheel}: {runtimes}")
+    print(f"Verified no bundled OpenMP runtime: {wheel.name}")
+PY
 printf 'Wheels: %s/target/wheels-macos\n' "$PWD"
