@@ -71,6 +71,7 @@ pub fn read_gem(
     save_counts_layer: bool,
     save_exon_layer: bool,
 ) -> Result<SoData> {
+    crate::parallel::init_rayon(0);
     if bin_size == 0 {
         bail!("read_gem: bin_size must be >= 1");
     }
@@ -185,20 +186,20 @@ pub fn read_gem(
         row_offsets[i + 1] += row_offsets[i];
     }
     let mut col_indices = vec![0usize; nnz];
-    let mut values = vec![0f64; nnz];
+    let mut values = vec![0f32; nnz];
     let mut max_exp = 0u32;
     for (i, &k) in keys.iter().enumerate() {
         let c = counts[&k];
         max_exp = max_exp.max(c);
         col_indices[i] = (k & 0xFFFF_FFFF) as usize;
-        values[i] = c as f64;
+        values[i] = c as f32;
     }
     drop(counts);
 
     let exon_csr = exon_counts.as_ref().map(|ec| {
-        let ev: Vec<f64> = keys
+        let ev: Vec<f32> = keys
             .iter()
-            .map(|k| ec.get(k).copied().unwrap_or(0) as f64)
+            .map(|k| ec.get(k).copied().unwrap_or(0) as f32)
             .collect();
         CsrMatrix::try_from_csr_data(
             n_cells,

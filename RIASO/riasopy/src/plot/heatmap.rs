@@ -36,7 +36,7 @@ fn greens_colormap(t: f64) -> RGBColor {
 
 pub(crate) fn densify(exp: &ExpMatrix) -> Array2<f64> {
     match exp {
-        ExpMatrix::Dense(d) => d.clone(),
+        ExpMatrix::Dense(d) => d.mapv(|v| v as f64),
         ExpMatrix::Sparse(csr) => {
             let (nrows, ncols) = (csr.nrows(), csr.ncols());
             let mut dense = Array2::<f64>::zeros((nrows, ncols));
@@ -48,7 +48,7 @@ pub(crate) fn densify(exp: &ExpMatrix) -> Array2<f64> {
                 let row_ptr = unsafe { ptr.add(row * ncols) };
                 for idx in offsets[row]..offsets[row + 1] {
                     unsafe {
-                        *row_ptr.add(cols[idx]) = vals[idx];
+                        *row_ptr.add(cols[idx]) = vals[idx] as f64;
                     }
                 }
             });
@@ -537,9 +537,11 @@ fn prepare_common(
     top_n: usize,
     groups: Option<&[i64]>,
 ) -> anyhow::Result<CommonPrepare> {
-    let dense = crate::algorithm::marker::marker_input(sd).ok_or_else(|| {
-        anyhow!("no expression matrix (exp_matrix is missing): read the data first")
-    })?;
+    let dense = crate::algorithm::marker::marker_input(sd)
+        .ok_or_else(|| {
+            anyhow!("no expression matrix (exp_matrix is missing): read the data first")
+        })?
+        .to_dense();
     let genes = sd.symbol_names();
     let labels = extract_clusters(sd, cluster_key)?;
 

@@ -1,14 +1,15 @@
+use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::fs::File;
 use std::path::Path;
 
 use anyhow::{anyhow, bail, Result};
+use nalgebra_sparse::csr::CsrMatrix;
 use ndarray::Array2;
 use polars::prelude::{Column, CsvWriter, DataFrame, SerWriter};
 use rayon::prelude::*;
 
 use crate::core::{ClusterMarkerResult, ExpMatrix, MarkerResult, SoData};
-use crate::parallel::SendPtr;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CorrMethod {
@@ -159,7 +160,7 @@ struct ClusterAcc {
     cnt_pos_r: Vec<usize>,
 }
 
-fn accumulate_cluster(x: &Array2<f64>, labels: &[i64], cid: i64) -> ClusterAcc {
+fn accumulate_cluster_dense(x: &Array2<f32>, labels: &[i64], cid: i64) -> ClusterAcc {
     let n_genes = x.ncols();
     let n_cells = x.nrows();
     let mut acc = ClusterAcc {
@@ -179,7 +180,7 @@ fn accumulate_cluster(x: &Array2<f64>, labels: &[i64], cid: i64) -> ClusterAcc {
             acc.n_g += 1;
             let row = &x.row(c);
             for (g, &v) in row.iter().enumerate() {
-                acc.sum_g[g] += v;
+                acc.sum_g[g] += v as f64;
                 if v > 0.0 {
                     acc.cnt_pos_g[g] += 1;
                 }
@@ -188,7 +189,7 @@ fn accumulate_cluster(x: &Array2<f64>, labels: &[i64], cid: i64) -> ClusterAcc {
             acc.n_r += 1;
             let row = &x.row(c);
             for (g, &v) in row.iter().enumerate() {
-                acc.sum_r[g] += v;
+                acc.sum_r[g] += v as f64;
                 if v > 0.0 {
                     acc.cnt_pos_r[g] += 1;
                 }
@@ -204,16 +205,81 @@ fn accumulate_cluster(x: &Array2<f64>, labels: &[i64], cid: i64) -> ClusterAcc {
         if labels[c] == cid {
             let row = &x.row(c);
             for (g, &v) in row.iter().enumerate() {
-                let d = v - mean_g[g];
+                let d = v as f64 - mean_g[g];
                 acc.sq_g[g] += d * d;
             }
         } else {
             let row = &x.row(c);
             for (g, &v) in row.iter().enumerate() {
-                let d = v - mean_r[g];
+                let d = v as f64 - mean_r[g];
                 acc.sq_r[g] += d * d;
             }
         }
+    }
+
+    acc
+}
+
+fn accumulate_cluster_sparse(csr: &CsrMatrix<f32>, labels: &[i64], cid: i64) -> ClusterAcc {
+    let n_genes = csr.ncols();
+    let n_cells = csr.nrows();
+    let mut acc = ClusterAcc {
+        n_g: 0,
+        n_r: 0,
+        sum_g: vec![0.0; n_genes],
+        sum_r: vec![0.0; n_genes],
+        sq_g: vec![0.0; n_genes],
+        sq_r: vec![0.0; n_genes],
+        cnt_pos_g: vec![0usize; n_genes],
+        cnt_pos_r: vec![0usize; n_genes],
+    };
+
+    for &l in labels {
+        if l == cid {
+            acc.n_g += 1;
+        } else {
+            acc.n_r += 1;
+        }
+    }
+
+    let offsets = csr.row_offsets();
+    let cols = csr.col_indices();
+    let vals = csr.values();
+
+    for c in 0..n_cells {
+        for idx in offsets[c]..offsets[c + 1] {
+            let g = cols[idx];
+            let v = vals[idx];
+            if labels[c] == cid {
+                acc.sum_g[g] += v as f64;
+                acc.cnt_pos_g[g] += 1;
+            } else {
+                acc.sum_r[g] += v as f64;
+                acc.cnt_pos_r[g] += 1;
+            }
+        }
+    }
+
+    let mean_g: Vec<f64> = acc.sum_g.iter().map(|&s| s / acc.n_g as f64).collect();
+    let mean_r: Vec<f64> = acc.sum_r.iter().map(|&s| s / acc.n_r as f64).collect();
+
+    for c in 0..n_cells {
+        for idx in offsets[c]..offsets[c + 1] {
+            let g = cols[idx];
+            let v = vals[idx];
+            if labels[c] == cid {
+                let d = v as f64 - mean_g[g];
+                acc.sq_g[g] += d * d;
+            } else {
+                let d = v as f64 - mean_r[g];
+                acc.sq_r[g] += d * d;
+            }
+        }
+    }
+
+    for g in 0..n_genes {
+        acc.sq_g[g] += (acc.n_g - acc.cnt_pos_g[g]) as f64 * mean_g[g] * mean_g[g];
+        acc.sq_r[g] += (acc.n_r - acc.cnt_pos_r[g]) as f64 * mean_r[g] * mean_r[g];
     }
 
     acc
@@ -270,35 +336,8 @@ fn bonferroni_correct(p: &[f64]) -> Vec<f64> {
         .collect()
 }
 
-fn densify(exp: &ExpMatrix) -> Array2<f64> {
-    match exp {
-        ExpMatrix::Dense(d) => d.clone(),
-        ExpMatrix::Sparse(csr) => {
-            let (nrows, ncols) = (csr.nrows(), csr.ncols());
-            let mut dense = Array2::<f64>::zeros((nrows, ncols));
-            let offsets = csr.row_offsets();
-            let cols = csr.col_indices();
-            let vals = csr.values();
-            let ptr = SendPtr(dense.as_mut_ptr());
-            (0..nrows).into_par_iter().for_each(|row| {
-                let row_ptr = unsafe { ptr.add(row * ncols) };
-                for idx in offsets[row]..offsets[row + 1] {
-                    unsafe {
-                        *row_ptr.add(cols[idx]) = vals[idx];
-                    }
-                }
-            });
-            dense
-        }
-    }
-}
-
-pub fn marker_genes(
-    x: &Array2<f64>,
-    labels: &[i64],
-    params: &MarkerParams,
-) -> Result<MarkerResult> {
-    let n_cells = x.nrows();
+pub fn marker_genes(x: &ExpMatrix, labels: &[i64], params: &MarkerParams) -> Result<MarkerResult> {
+    let n_cells = x.n_rows();
     if labels.len() != n_cells {
         bail!(
             "marker_genes: labels len ({}) != rows ({})",
@@ -306,7 +345,7 @@ pub fn marker_genes(
             n_cells
         );
     }
-    let n_genes = x.ncols();
+    let n_genes = x.n_cols();
     if n_genes == 0 {
         return Ok(MarkerResult {
             clusters: Vec::new(),
@@ -320,7 +359,10 @@ pub fn marker_genes(
     let clusters: Vec<ClusterMarkerResult> = cluster_ids
         .par_iter()
         .map(|&cid| {
-            let acc = accumulate_cluster(x, labels, cid);
+            let acc = match x {
+                ExpMatrix::Dense(arr) => accumulate_cluster_dense(arr, labels, cid),
+                ExpMatrix::Sparse(csr) => accumulate_cluster_sparse(csr, labels, cid),
+            };
             let ng = acc.n_g as f64;
             let nr = acc.n_r as f64;
 
@@ -391,13 +433,12 @@ pub fn marker_genes(
     Ok(MarkerResult { clusters })
 }
 
-pub(crate) fn marker_input(data: &SoData) -> Option<Array2<f64>> {
+pub(crate) fn marker_input(data: &SoData) -> Option<Cow<'_, ExpMatrix>> {
     if let Some(layer) = data.get_layer(crate::algorithm::normalize::LOG1P_LAYER) {
-        return Some(densify(layer));
+        return Some(Cow::Borrowed(layer));
     }
     match &data.exp_matrix {
-        Some(ExpMatrix::Dense(d)) => Some(d.clone()),
-        Some(e) => Some(densify(e)),
+        Some(e) => Some(Cow::Borrowed(e)),
         None => None,
     }
 }
@@ -410,7 +451,7 @@ pub fn run_marker(data: &mut SoData, labels: &[i64], params: &MarkerParams) {
         None => return,
     };
 
-    if let Ok(res) = marker_genes(&x, labels, params) {
+    if let Ok(res) = marker_genes(x.as_ref(), labels, params) {
         data.result.marker = Some(res);
     }
 }

@@ -146,10 +146,66 @@ jobs:
           path: RIASO/riasopy/dist/riasopy-*.tar.gz
           if-no-files-found: error
 
+  build-macos:
+    name: wheel (macOS ${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+            target: aarch64-apple-darwin
+          - runner: macos-15-intel
+            arch: x86_64
+            target: x86_64-apple-darwin
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash -el {0}
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "11.0"
+      CARGO_BUILD_JOBS: "2"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          targets: ${{ matrix.target }}
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-version: latest
+          environment-file: RIASO/riasopy/environment-macos.yml
+          activate-environment: riasopy-macos
+          auto-activate-base: false
+      - name: select pthread OpenBLAS math libraries
+        run: |
+          conda install -y --override-channels -c conda-forge \
+            'libblas=*=*_openblas' 'libcblas=*=*_openblas' 'liblapack=*=*_openblas' 'libopenblas=*=pthreads*'
+          conda list --show-channel-urls
+      - name: build macOS wheel
+        run: bash RIASO/riasopy/scripts/build_wheel_macos.sh
+      - name: install and test in a separate environment
+        run: |
+          set -euo pipefail
+          wheel=$(find "$PWD/RIASO/riasopy/target/wheels-macos" -name 'riasopy-*.whl' -print -quit)
+          test -n "$wheel"
+          conda create -y -n macos-wheel-test -c conda-forge python=3.11 numpy=2.4.6 pip
+          conda run -n macos-wheel-test python -m pip install --no-deps "$wheel"
+          conda run -n macos-wheel-test python -I -c "import riasopy; print(riasopy.__version__)"
+      - name: verify data loading and native font rendering
+        run: |
+          conda run -n macos-wheel-test python -I "$PWD/RIASO/riasopy/scripts/smoke_macos.py"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: riasopy-wheel-macos-${{ matrix.arch }}
+          path: RIASO/riasopy/target/wheels-macos/riasopy-*.whl
+          if-no-files-found: error
+
   publish:
     name: publish to PyPI
     if: github.event_name == 'release'
-    needs: [build, sdist]
+    needs: [build, build-macos, sdist]
     runs-on: ubuntu-latest
     permissions:
       id-token: write

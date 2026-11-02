@@ -120,11 +120,7 @@ pub fn run(config: &Config) -> Result<()> {
 fn run_one(config: &Config) -> Result<()> {
     let io = &config.io;
 
-    if config.threads > 0 {
-        let _ = rayon::ThreadPoolBuilder::new()
-            .num_threads(config.threads)
-            .build_global();
-    }
+    crate::parallel::init_rayon(config.threads);
     let multi = io.integrate;
     let sample = if multi {
         SAMPLE.to_string()

@@ -117,6 +117,7 @@ pub fn read_gef(
     save_counts_layer: bool,
     save_exon_layer: bool,
 ) -> Result<SoData> {
+    crate::parallel::init_rayon(0);
     let file = File::open(path)?;
 
     if bin_type == "cell_bins" || is_cellbin_file(&file) {
@@ -284,14 +285,20 @@ pub fn read_gef(
                 n_genes,
                 row_offsets.clone(),
                 col_indices.clone(),
-                ev,
+                ev.into_iter().map(|v| v as f32).collect(),
             )
             .map_err(|err| anyhow!("read_gef: failed to build the exon CSR: {err:?}"))?,
         ),
         None => None,
     };
-    let csr = CsrMatrix::try_from_csr_data(n_cells, n_genes, row_offsets, col_indices, values)
-        .map_err(|e| anyhow!("read_gef: failed to build the CSR: {e:?}"))?;
+    let csr = CsrMatrix::try_from_csr_data(
+        n_cells,
+        n_genes,
+        row_offsets,
+        col_indices,
+        values.into_iter().map(|v| v as f32).collect(),
+    )
+    .map_err(|e| anyhow!("read_gef: failed to build the CSR: {e:?}"))?;
     _t();
 
     let mut data = SoData::new();
@@ -435,15 +442,21 @@ fn read_gef_cellbin(
                 n_genes,
                 row_offsets.clone(),
                 col_indices.clone(),
-                ev,
+                ev.into_iter().map(|v| v as f32).collect(),
             )
             .map_err(|err| anyhow!("read_gef: failed to build the cellbin exon CSR: {err:?}"))?,
         ),
         None => None,
     };
 
-    let csr = CsrMatrix::try_from_csr_data(n_cells, n_genes, row_offsets, col_indices, values)
-        .map_err(|e| anyhow!("read_gef: failed to build the cellbin CSR: {e:?}"))?;
+    let csr = CsrMatrix::try_from_csr_data(
+        n_cells,
+        n_genes,
+        row_offsets,
+        col_indices,
+        values.into_iter().map(|v| v as f32).collect(),
+    )
+    .map_err(|e| anyhow!("read_gef: failed to build the cellbin CSR: {e:?}"))?;
 
     let mut data = SoData::new();
 

@@ -2015,11 +2015,17 @@ fn integrate(
     })
 }
 
+#[pyfunction]
+fn set_threads(n: usize) {
+    crate::parallel::set_rayon_threads(n);
+}
+
 #[pymodule]
 fn riasopy(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PySoData>()?;
     m.add_class::<PySingleRRef>()?;
     m.add_class::<PyGeneSetDb>()?;
+    m.add_function(wrap_pyfunction!(set_threads, m)?)?;
     m.add_function(wrap_pyfunction!(read_gef, m)?)?;
     m.add_function(wrap_pyfunction!(read_gem, m)?)?;
     m.add_function(wrap_pyfunction!(read_h5ad, m)?)?;

@@ -10,6 +10,7 @@ use polars::prelude::*;
 use crate::core::{ExpMatrix, SoData};
 
 pub fn read_h5ad(path: &str, spatial_key: &str, save_counts_layer: bool) -> Result<SoData> {
+    crate::parallel::init_rayon(0);
     let file = File::open(path)?;
     let mut data = SoData::new();
     data.file_path = Some(PathBuf::from(path));
@@ -18,9 +19,17 @@ pub fn read_h5ad(path: &str, spatial_key: &str, save_counts_layer: bool) -> Resu
     if file.link_exists("X") {
         if let Ok(ds) = file.dataset("X") {
             let arr: Array2<f64> = read_dense_x(&ds)?;
-            data.exp_matrix = Some(ExpMatrix::Dense(arr));
+            data.exp_matrix = Some(ExpMatrix::Dense(arr.mapv(|v| v as f32)));
         } else if let Ok(group) = file.group("X") {
-            data.exp_matrix = Some(ExpMatrix::Sparse(read_sparse_matrix(&group)?));
+            let csr = read_sparse_matrix(&group)?;
+            let (nrows, ncols) = (csr.nrows(), csr.ncols());
+            let offsets = csr.row_offsets().to_vec();
+            let cols = csr.col_indices().to_vec();
+            let vals: Vec<f32> = csr.values().iter().map(|&v| v as f32).collect();
+            data.exp_matrix = Some(ExpMatrix::Sparse(
+                CsrMatrix::try_from_csr_data(nrows, ncols, offsets, cols, vals)
+                    .map_err(|e| anyhow::anyhow!("read_h5ad: failed to build sparse X: {e:?}"))?,
+            ));
         }
     }
 

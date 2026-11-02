@@ -17,7 +17,7 @@ pub fn scale(data: &mut SoData, zero_center: bool, max_value: Option<f64>, write
         match exp {
             ExpMatrix::Dense(arr) => scale_dense(arr, zero_center, max_value),
             ExpMatrix::Sparse(csr) if zero_center => {
-                let mut d = crate::parallel::csr_to_dense(csr);
+                let mut d = crate::parallel::csr_to_dense::<f32>(csr);
                 scale_dense(&mut d, true, max_value);
                 *exp = ExpMatrix::Dense(d);
             }
@@ -29,7 +29,7 @@ pub fn scale(data: &mut SoData, zero_center: bool, max_value: Option<f64>, write
     }
 }
 
-fn scale_dense(arr: &mut Array2<f64>, zero_center: bool, max_value: Option<f64>) {
+fn scale_dense(arr: &mut Array2<f32>, zero_center: bool, max_value: Option<f64>) {
     let (n_rows, n_cols) = arr.dim();
     if n_rows == 0 || n_cols == 0 {
         return;
@@ -40,16 +40,16 @@ fn scale_dense(arr: &mut Array2<f64>, zero_center: bool, max_value: Option<f64>)
     let slice = arr.as_slice_mut().expect("dense matrix must be contiguous");
 
     let (col_sum, col_sum_sq) = dense_col_stats(slice, n_rows, n_cols);
-    let nn = n_rows as f64;
-    let mut mean = vec![0.0f64; n_cols];
-    let mut std = vec![0.0f64; n_cols];
+    let nn = n_rows as f32;
+    let mut mean = vec![0.0f32; n_cols];
+    let mut std = vec![0.0f32; n_cols];
     for j in 0..n_cols {
         let m = col_sum[j] / nn;
-        let var = (col_sum_sq[j] / nn - m * m) * nn / (nn - 1.0);
-        let var = if var < 0.0 { 0.0 } else { var };
+        let var = (col_sum_sq[j] / nn - m * m) * nn / (nn - 1.0f32);
+        let var = if var < 0.0f32 { 0.0f32 } else { var };
         let s = var.sqrt();
         mean[j] = m;
-        std[j] = if s == 0.0 { 1.0 } else { s };
+        std[j] = if s == 0.0f32 { 1.0f32 } else { s };
     }
 
     slice.par_chunks_mut(n_cols).for_each(|row| {
@@ -65,6 +65,7 @@ fn scale_dense(arr: &mut Array2<f64>, zero_center: bool, max_value: Option<f64>)
     });
 
     if let Some(mv) = max_value {
+        let mv = mv as f32;
         slice.par_iter_mut().for_each(|v| {
             if *v > mv {
                 *v = mv;
@@ -73,29 +74,30 @@ fn scale_dense(arr: &mut Array2<f64>, zero_center: bool, max_value: Option<f64>)
     }
 }
 
-fn scale_sparse_inplace(csr: &mut CsrMatrix<f64>, max_value: Option<f64>) {
+fn scale_sparse_inplace(csr: &mut CsrMatrix<f32>, max_value: Option<f64>) {
     let n_rows = csr.nrows();
     let n_cols = csr.ncols();
     if n_rows == 0 || n_cols == 0 {
         return;
     }
     let (col_sum, col_sum_sq) = csr_col_stats(csr);
-    let nn = n_rows as f64;
-    let mut std = vec![0.0f64; n_cols];
+    let nn = n_rows as f32;
+    let mut std = vec![0.0f32; n_cols];
     for j in 0..n_cols {
         let m = col_sum[j] / nn;
-        let var = (col_sum_sq[j] / nn - m * m) * nn / (nn - 1.0);
-        let var = if var < 0.0 { 0.0 } else { var };
+        let var = (col_sum_sq[j] / nn - m * m) * nn / (nn - 1.0f32);
+        let var = if var < 0.0f32 { 0.0f32 } else { var };
         let s = var.sqrt();
-        std[j] = if s == 0.0 { 1.0 } else { s };
+        std[j] = if s == 0.0f32 { 1.0f32 } else { s };
     }
 
     let col_idx = csr.col_indices().to_vec();
     let values = csr.values_mut();
+    let mv = max_value.map(|v| v as f32);
     values.par_iter_mut().enumerate().for_each(|(k, v)| {
         let j = col_idx[k];
         *v /= std[j];
-        if let Some(mv) = max_value {
+        if let Some(mv) = mv {
             if *v > mv {
                 *v = mv;
             }
@@ -103,10 +105,10 @@ fn scale_sparse_inplace(csr: &mut CsrMatrix<f64>, max_value: Option<f64>) {
     });
 }
 
-fn dense_col_stats(slice: &[f64], n_rows: usize, n_cols: usize) -> (Vec<f64>, Vec<f64>) {
+fn dense_col_stats(slice: &[f32], n_rows: usize, n_cols: usize) -> (Vec<f32>, Vec<f32>) {
     let n_threads = rayon::current_num_threads();
-    let mut sum_buf: Vec<Vec<f64>> = (0..n_threads).map(|_| vec![0.0f64; n_cols]).collect();
-    let mut sq_buf: Vec<Vec<f64>> = (0..n_threads).map(|_| vec![0.0f64; n_cols]).collect();
+    let mut sum_buf: Vec<Vec<f32>> = (0..n_threads).map(|_| vec![0.0f32; n_cols]).collect();
+    let mut sq_buf: Vec<Vec<f32>> = (0..n_threads).map(|_| vec![0.0f32; n_cols]).collect();
     let rows_per_thread = n_rows.div_ceil(n_threads);
     sum_buf
         .par_iter_mut()
@@ -127,12 +129,12 @@ fn dense_col_stats(slice: &[f64], n_rows: usize, n_cols: usize) -> (Vec<f64>, Ve
     reduce_thread_bufs(&sum_buf, &sq_buf, n_cols, n_threads)
 }
 
-fn csr_col_stats(csr: &CsrMatrix<f64>) -> (Vec<f64>, Vec<f64>) {
+fn csr_col_stats(csr: &CsrMatrix<f32>) -> (Vec<f32>, Vec<f32>) {
     let n_rows = csr.nrows();
     let n_cols = csr.ncols();
     let n_threads = rayon::current_num_threads();
-    let mut sum_buf: Vec<Vec<f64>> = (0..n_threads).map(|_| vec![0.0f64; n_cols]).collect();
-    let mut sq_buf: Vec<Vec<f64>> = (0..n_threads).map(|_| vec![0.0f64; n_cols]).collect();
+    let mut sum_buf: Vec<Vec<f32>> = (0..n_threads).map(|_| vec![0.0f32; n_cols]).collect();
+    let mut sq_buf: Vec<Vec<f32>> = (0..n_threads).map(|_| vec![0.0f32; n_cols]).collect();
     let offsets = csr.row_offsets();
     let col_idx = csr.col_indices();
     let values = csr.values();
@@ -157,13 +159,13 @@ fn csr_col_stats(csr: &CsrMatrix<f64>) -> (Vec<f64>, Vec<f64>) {
 }
 
 fn reduce_thread_bufs(
-    sum_buf: &[Vec<f64>],
-    sq_buf: &[Vec<f64>],
+    sum_buf: &[Vec<f32>],
+    sq_buf: &[Vec<f32>],
     n_cols: usize,
     n_threads: usize,
-) -> (Vec<f64>, Vec<f64>) {
-    let mut col_sum = vec![0.0f64; n_cols];
-    let mut col_sum_sq = vec![0.0f64; n_cols];
+) -> (Vec<f32>, Vec<f32>) {
+    let mut col_sum = vec![0.0f32; n_cols];
+    let mut col_sum_sq = vec![0.0f32; n_cols];
     for t in 0..n_threads {
         for j in 0..n_cols {
             col_sum[j] += sum_buf[t][j];

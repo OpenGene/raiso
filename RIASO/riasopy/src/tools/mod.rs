@@ -75,9 +75,9 @@ fn integrate_impl(samples: &[SoData], var_type: &str, save_counts_layer: bool) -
 
     let mut offsets: Vec<usize> = Vec::new();
     let mut cols: Vec<usize> = Vec::new();
-    let mut vals: Vec<f64> = Vec::new();
+    let mut vals: Vec<f32> = Vec::new();
 
-    let mut dense_slices: Vec<(usize, usize, Array2<f64>)> = Vec::new();
+    let mut dense_slices: Vec<(usize, usize, Array2<f32>)> = Vec::new();
 
     if !all_dense {
         offsets.push(0usize);
@@ -191,7 +191,7 @@ fn integrate_impl(samples: &[SoData], var_type: &str, save_counts_layer: bool) -
     }
 
     let merged_exp = if all_dense {
-        let mut merged_x = Array2::<f64>::zeros((total_n_obs, n_vars));
+        let mut merged_x = Array2::<f32>::zeros((total_n_obs, n_vars));
         for (start, end, sub) in dense_slices {
             merged_x.slice_mut(s![start..end, ..]).assign(&sub);
         }
@@ -314,12 +314,12 @@ fn is_monotonic(map: &[Option<usize>]) -> bool {
 }
 
 fn csr_align_append(
-    csr: &CsrMatrix<f64>,
+    csr: &CsrMatrix<f32>,
     old_to_new: &[Option<usize>],
     monotonic: bool,
     offsets: &mut Vec<usize>,
     cols: &mut Vec<usize>,
-    vals: &mut Vec<f64>,
+    vals: &mut Vec<f32>,
 ) {
     let src_offsets = csr.row_offsets();
     let src_cols = csr.col_indices();
@@ -387,13 +387,13 @@ fn csr_align_append(
 }
 
 fn align_dense_block(
-    arr: &Array2<f64>,
+    arr: &Array2<f32>,
     var_names: &[&str],
     gene_order: &HashMap<String, usize>,
     n_vars: usize,
-) -> Array2<f64> {
+) -> Array2<f32> {
     let n_obs = arr.nrows();
-    let mut sub = Array2::<f64>::zeros((n_obs, n_vars));
+    let mut sub = Array2::<f32>::zeros((n_obs, n_vars));
     for old_col in 0..arr.ncols() {
         if let Some(&gene) = var_names.get(old_col) {
             if let Some(&new_col) = gene_order.get(gene) {
@@ -405,10 +405,10 @@ fn align_dense_block(
 }
 
 fn dense_emit_nonzeros(
-    arr: &Array2<f64>,
+    arr: &Array2<f32>,
     offsets: &mut Vec<usize>,
     cols: &mut Vec<usize>,
-    vals: &mut Vec<f64>,
+    vals: &mut Vec<f32>,
 ) {
     for row in arr.rows() {
         for (j, &v) in row.iter().enumerate() {

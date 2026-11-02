@@ -7,13 +7,13 @@ use crate::core::{ExpMatrix, HvgResult, SoData};
 const MAD_C: f64 = 0.674_489_750_196_081_7;
 
 fn csr_col_sum_sq_par<F>(
-    csr: &CsrMatrix<f64>,
+    csr: &CsrMatrix<f32>,
     n_rows: usize,
     n_cols: usize,
     transform: F,
 ) -> (Vec<f64>, Vec<f64>)
 where
-    F: Fn(f64) -> f64 + Sync + Send,
+    F: Fn(f32) -> f64 + Sync + Send,
 {
     let n_threads = rayon::current_num_threads();
     let mut sum_buf: Vec<Vec<f64>> = (0..n_threads).map(|_| vec![0.0f64; n_cols]).collect();
@@ -52,9 +52,9 @@ where
     (col_sum, col_sum_sq)
 }
 
-fn dense_col_sum_sq_par<F>(arr: &Array2<f64>, n_cols: usize, transform: F) -> (Vec<f64>, Vec<f64>)
+fn dense_col_sum_sq_par<F>(arr: &Array2<f32>, n_cols: usize, transform: F) -> (Vec<f64>, Vec<f64>)
 where
-    F: Fn(f64) -> f64 + Sync + Send,
+    F: Fn(f32) -> f64 + Sync + Send,
 {
     (0..n_cols)
         .into_par_iter()
@@ -95,13 +95,15 @@ pub fn select_top_variable_genes(data: &mut SoData, n_top: usize, n_bins: usize,
 
     let (col_sum, col_sum_sq) = if is_seurat {
         match exp {
-            ExpMatrix::Sparse(csr) => csr_col_sum_sq_par(csr, n_cells, n_genes, f64::exp_m1),
-            ExpMatrix::Dense(arr) => dense_col_sum_sq_par(arr, n_genes, f64::exp_m1),
+            ExpMatrix::Sparse(csr) => {
+                csr_col_sum_sq_par(csr, n_cells, n_genes, |v| (v as f64).exp_m1())
+            }
+            ExpMatrix::Dense(arr) => dense_col_sum_sq_par(arr, n_genes, |v| (v as f64).exp_m1()),
         }
     } else {
         match exp {
-            ExpMatrix::Sparse(csr) => csr_col_sum_sq_par(csr, n_cells, n_genes, |v| v),
-            ExpMatrix::Dense(arr) => dense_col_sum_sq_par(arr, n_genes, |v| v),
+            ExpMatrix::Sparse(csr) => csr_col_sum_sq_par(csr, n_cells, n_genes, |v| v as f64),
+            ExpMatrix::Dense(arr) => dense_col_sum_sq_par(arr, n_genes, |v| v as f64),
         }
     };
 
