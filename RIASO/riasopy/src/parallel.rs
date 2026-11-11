@@ -16,8 +16,7 @@ impl<T> SendPtr<T> {
 unsafe impl<T: Send> Send for SendPtr<T> {}
 unsafe impl<T: Send> Sync for SendPtr<T> {}
 
-#[cfg_attr(target_os = "linux", link(name = "openblasp"))]
-#[cfg_attr(target_os = "macos", link(name = "openblas"))]
+#[link(name = "blas")]
 unsafe extern "C" {
     fn openblas_set_num_threads(n: std::os::raw::c_int);
 }

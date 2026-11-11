@@ -1269,8 +1269,7 @@ fn dot_4acc(a: &[f32], b: &[f32]) -> f32 {
     s
 }
 
-#[cfg_attr(target_os = "linux", link(name = "openblasp"))]
-#[cfg_attr(target_os = "macos", link(name = "openblas"))]
+#[link(name = "blas")]
 unsafe extern "C" {
     fn sgemv_(
         trans: *const u8,
