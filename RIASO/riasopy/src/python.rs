@@ -214,30 +214,6 @@ fn pca_result_to_dict(py: Python<'_>, result: &PcaResult, dtype: &str) -> PyResu
     };
     let dict = PyDict::new(py);
     if to_f32 {
-        dict.set_item(
-            "projected",
-            result.projected.mapv(|v| v as f32).into_pyarray(py),
-        )?;
-        dict.set_item(
-            "components",
-            result.components.mapv(|v| v as f32).into_pyarray(py),
-        )?;
-        dict.set_item(
-            "explained_variance",
-            result
-                .explained_variance
-                .mapv(|v| v as f32)
-                .into_pyarray(py),
-        )?;
-        dict.set_item(
-            "explained_variance_ratio",
-            result
-                .explained_variance_ratio
-                .mapv(|v| v as f32)
-                .into_pyarray(py),
-        )?;
-        dict.set_item("mean", result.mean.mapv(|v| v as f32).into_pyarray(py))?;
-    } else {
         dict.set_item("projected", result.projected.clone().into_pyarray(py))?;
         dict.set_item("components", result.components.clone().into_pyarray(py))?;
         dict.set_item(
@@ -249,6 +225,30 @@ fn pca_result_to_dict(py: Python<'_>, result: &PcaResult, dtype: &str) -> PyResu
             result.explained_variance_ratio.clone().into_pyarray(py),
         )?;
         dict.set_item("mean", result.mean.clone().into_pyarray(py))?;
+    } else {
+        dict.set_item(
+            "projected",
+            result.projected.mapv(|v| v as f64).into_pyarray(py),
+        )?;
+        dict.set_item(
+            "components",
+            result.components.mapv(|v| v as f64).into_pyarray(py),
+        )?;
+        dict.set_item(
+            "explained_variance",
+            result
+                .explained_variance
+                .mapv(|v| v as f64)
+                .into_pyarray(py),
+        )?;
+        dict.set_item(
+            "explained_variance_ratio",
+            result
+                .explained_variance_ratio
+                .mapv(|v| v as f64)
+                .into_pyarray(py),
+        )?;
+        dict.set_item("mean", result.mean.mapv(|v| v as f64).into_pyarray(py))?;
     }
     dict.set_item("total_variance", result.total_variance)?;
     Ok(dict.unbind())
