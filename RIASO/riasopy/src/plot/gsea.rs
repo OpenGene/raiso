@@ -21,11 +21,11 @@ const RUG_H: i32 = 46;
 
 const PANEL_GAP: i32 = 12;
 
-const MAX_ROW_H: f64 = 22.0;
+const MAX_ROW_H: f32 = 22.0;
 
 const LABEL_MAX_CHARS: usize = 52;
 
-const SIG_ANCHORS: [(f64, (u8, u8, u8)); 5] = [
+const SIG_ANCHORS: [(f32, (u8, u8, u8)); 5] = [
     (0.00, (0xf8, 0xf8, 0xf8)),
     (0.25, (0xfd, 0xd9, 0xd9)),
     (0.50, (0xfb, 0x90, 0x90)),
@@ -37,14 +37,14 @@ const LINE_BLUE: RGBColor = RGBColor(0x1f, 0x6f, 0xe0);
 
 const BAND: RGBColor = RGBColor(0xf7, 0xf7, 0xf7);
 
-fn sig_colormap(t: f64) -> RGBColor {
+fn sig_colormap(t: f32) -> RGBColor {
     let t = t.clamp(0.0, 1.0);
     for w in SIG_ANCHORS.windows(2) {
         let (t0, c0) = w[0];
         let (t1, c1) = w[1];
         if t <= t1 {
             let f = (t - t0) / (t1 - t0);
-            let lerp = |a: u8, b: u8| (a as f64 + (b as f64 - a as f64) * f).round() as u8;
+            let lerp = |a: u8, b: u8| (a as f32 + (b as f32 - a as f32) * f).round() as u8;
             return RGBColor(lerp(c0.0, c1.0), lerp(c0.1, c1.1), lerp(c0.2, c1.2));
         }
     }
@@ -52,7 +52,7 @@ fn sig_colormap(t: f64) -> RGBColor {
     RGBColor(c.0, c.1, c.2)
 }
 
-fn fmt_short(v: f64) -> String {
+fn fmt_short(v: f32) -> String {
     let a = v.abs();
     if a >= 1000.0 {
         format!("{v:.0}")
@@ -65,14 +65,14 @@ fn fmt_short(v: f64) -> String {
     }
 }
 
-fn fmt_signed(v: f64) -> String {
+fn fmt_signed(v: f32) -> String {
     format!("{}{}", if v >= 0.0 { "+" } else { "" }, fmt_short(v))
 }
 
-fn fmt_tick(v: f64, step: f64) -> String {
+fn fmt_tick(v: f32, step: f32) -> String {
     let mut d = 0usize;
     loop {
-        let scaled = step * 10f64.powi(d as i32);
+        let scaled = step * 10f32.powi(d as i32);
         if (scaled - scaled.round()).abs() < 1e-6 || d >= 4 {
             break;
         }
@@ -81,12 +81,12 @@ fn fmt_tick(v: f64, step: f64) -> String {
     format!("{:.*}", d, v)
 }
 
-fn nice_step(max_v: f64, target_ticks: usize) -> f64 {
+fn nice_step(max_v: f32, target_ticks: usize) -> f32 {
     if max_v <= 0.0 {
         return 1.0;
     }
-    let raw = max_v / target_ticks.max(1) as f64;
-    let mag = 10f64.powf(raw.log10().floor());
+    let raw = max_v / target_ticks.max(1) as f32;
+    let mag = 10f32.powf(raw.log10().floor());
     for m in [1.0, 2.0, 5.0, 10.0] {
         let cand = m * mag;
         if cand >= raw {
@@ -107,21 +107,21 @@ fn truncate_label(s: &str, max_chars: usize) -> String {
     }
 }
 
-fn right_center(size: f64) -> TextStyle<'static> {
+fn right_center(size: f32) -> TextStyle<'static> {
     ("sans-serif", size)
         .into_font()
         .color(&BLACK)
         .pos(Pos::new(HPos::Right, VPos::Center))
 }
 
-fn left_center(size: f64) -> TextStyle<'static> {
+fn left_center(size: f32) -> TextStyle<'static> {
     ("sans-serif", size)
         .into_font()
         .color(&BLACK)
         .pos(Pos::new(HPos::Left, VPos::Center))
 }
 
-fn center_mid(size: f64) -> TextStyle<'static> {
+fn center_mid(size: f32) -> TextStyle<'static> {
     ("sans-serif", size)
         .into_font()
         .color(&BLACK)
@@ -163,9 +163,9 @@ fn label_zone_w<DB: DrawingBackend>(
 
 fn draw_colorbar<DB: DrawingBackend>(
     area: &DrawingArea<DB, Shift>,
-    vmin: f64,
-    vmax: f64,
-    cmap: fn(f64) -> RGBColor,
+    vmin: f32,
+    vmax: f32,
+    cmap: fn(f32) -> RGBColor,
 ) -> Result<(), DrawingAreaErrorKind<DB::ErrorType>> {
     let (w, h) = area.dim_in_pixel();
     let (w, h) = (w as i32, h as i32);
@@ -175,7 +175,7 @@ fn draw_colorbar<DB: DrawingBackend>(
     let y1 = (h - 4).max(y0 + 1);
     let n = 128;
     for i in 0..n {
-        let t = 1.0 - i as f64 / (n as f64 - 1.0);
+        let t = 1.0 - i as f32 / (n as f32 - 1.0);
         let ya = y0 + (y1 - y0) * i / n;
         let yb = y0 + (y1 - y0) * (i + 1) / n;
         area.draw(&Rectangle::new([(x0, ya), (x1, yb)], cmap(t).filled()))?;
@@ -190,7 +190,7 @@ fn draw_colorbar<DB: DrawingBackend>(
 
 fn draw_size_legend<DB: DrawingBackend>(
     area: &DrawingArea<DB, Shift>,
-    max_size: f64,
+    max_size: f32,
     max_r: i32,
 ) -> Result<(), DrawingAreaErrorKind<DB::ErrorType>> {
     let (w, _h) = area.dim_in_pixel();
@@ -199,8 +199,8 @@ fn draw_size_legend<DB: DrawingBackend>(
     let color = sig_colormap(0.85);
     let style = ("sans-serif", 10.0).into_font().color(&BLACK);
     area.draw_text("size (K)", &style, (cx - 10, 4))?;
-    for (k, f) in [1.0f64, 0.8, 0.6, 0.4, 0.2].iter().enumerate() {
-        let r = (max_r as f64 * f.sqrt()).round() as i32;
+    for (k, f) in [1.0f32, 0.8, 0.6, 0.4, 0.2].iter().enumerate() {
+        let r = (max_r as f32 * f.sqrt()).round() as i32;
         let cy = 26 + k as i32 * step;
         area.draw(&Circle::new((cx, cy), r.max(1), color.filled()))?;
         area.draw_text(&fmt_short(max_size * f), &style, (cx + max_r + 3, cy - 5))?;
@@ -210,9 +210,9 @@ fn draw_size_legend<DB: DrawingBackend>(
 
 fn draw_right_legend<DB: DrawingBackend>(
     area: &DrawingArea<DB, Shift>,
-    content_h: f64,
-    max_sig: f64,
-    max_size: f64,
+    content_h: f32,
+    max_sig: f32,
+    max_size: f32,
     max_r: i32,
 ) -> Result<(), DrawingAreaErrorKind<DB::ErrorType>> {
     let (_rw, rh) = area.dim_in_pixel();
@@ -282,11 +282,11 @@ fn pick_terms(g: &GseaGroupResult, top_n: usize) -> anyhow::Result<Vec<&GseaTerm
     Ok(v)
 }
 
-fn sig_of(t: &GseaTerm) -> f64 {
+fn sig_of(t: &GseaTerm) -> f32 {
     (-t.pvalue_adj.log10()).max(0.0)
 }
 
-fn symmetric_axis(half: f64, target_ticks: usize) -> (f64, f64) {
+fn symmetric_axis(half: f32, target_ticks: usize) -> (f32, f32) {
     let half = half.max(1e-6);
     let step = nice_step(half, target_ticks);
     let h = (half / step).ceil() * step;
@@ -296,12 +296,12 @@ fn symmetric_axis(half: f64, target_ticks: usize) -> (f64, f64) {
 struct Plan {
     cys: Vec<i32>,
 
-    row_h: f64,
+    row_h: f32,
 
-    content_bot: f64,
+    content_bot: f32,
 }
 
-fn plan_rows(n: usize, y0: f64, y1: f64, min_row_h: f64) -> Plan {
+fn plan_rows(n: usize, y0: f32, y1: f32, min_row_h: f32) -> Plan {
     if n == 0 {
         return Plan {
             cys: Vec::new(),
@@ -309,11 +309,11 @@ fn plan_rows(n: usize, y0: f64, y1: f64, min_row_h: f64) -> Plan {
             content_bot: y0,
         };
     }
-    let row_h = ((y1 - y0) / n as f64).clamp(min_row_h, MAX_ROW_H);
+    let row_h = ((y1 - y0) / n as f32).clamp(min_row_h, MAX_ROW_H);
     let cys: Vec<i32> = (0..n)
-        .map(|r| (y0 + (r as f64 + 0.5) * row_h).round() as i32)
+        .map(|r| (y0 + (r as f32 + 0.5) * row_h).round() as i32)
         .collect();
-    let content_bot = (y0 + n as f64 * row_h).min(y1);
+    let content_bot = (y0 + n as f32 * row_h).min(y1);
     Plan {
         cys,
         row_h,
@@ -342,7 +342,7 @@ fn render_enrichment<DB: DrawingBackend>(
         .unwrap_or(1)
         .max(1);
 
-    let n_max = ((n_total - 1) as f64).max(1.0);
+    let n_max = ((n_total - 1) as f32).max(1.0);
 
     let (sub_area, body) = root.split_vertically(SUBTITLE_H as u32);
     let sub_style = ("sans-serif", 12.0).into_font().color(&BLACK);
@@ -372,21 +372,21 @@ fn render_enrichment<DB: DrawingBackend>(
     let (ew, eh) = (ew as i32, eh as i32);
     let (px0, px1) = (2i32, (ew - 8).max(3));
     let (py0, py1) = (6i32, (eh - 6).max(7));
-    let mut vmin = 0.0f64;
-    let mut vmax = 0.0f64;
+    let mut vmin = 0.0f32;
+    let mut vmax = 0.0f32;
     for &(_, v) in &term.running_sum {
         vmin = vmin.min(v);
         vmax = vmax.max(v);
     }
     let pad = ((vmax - vmin) * 0.12).max(0.02);
     let (vlo, vhi) = (vmin - pad, vmax + pad);
-    let xm = |rank: f64| -> i32 {
+    let xm = |rank: f32| -> i32 {
         let t = (rank / n_max).clamp(0.0, 1.0);
-        px0 + ((px1 - px0) as f64 * t).round() as i32
+        px0 + ((px1 - px0) as f32 * t).round() as i32
     };
-    let ym = |v: f64| -> i32 {
+    let ym = |v: f32| -> i32 {
         let t = ((v - vlo) / (vhi - vlo)).clamp(0.0, 1.0);
-        py1 - ((py1 - py0) as f64 * t).round() as i32
+        py1 - ((py1 - py0) as f32 * t).round() as i32
     };
 
     let tick_style = right_center(10.0);
@@ -400,7 +400,7 @@ fn render_enrichment<DB: DrawingBackend>(
         .pos(Pos::new(HPos::Left, VPos::Center));
     lab_area.draw_text("ES", &ylab, (6, (py0 + py1) / 2))?;
 
-    let peak_x = xm(term.rank_at_es as f64);
+    let peak_x = xm(term.rank_at_es as f32);
     es_area.draw(&PathElement::new(
         vec![(peak_x, py0), (peak_x, py1)],
         RGBColor(0x99, 0x99, 0x99).stroke_width(1),
@@ -415,7 +415,7 @@ fn render_enrichment<DB: DrawingBackend>(
         let pts: Vec<(i32, i32)> = term
             .running_sum
             .iter()
-            .map(|&(r, v)| (xm(r as f64), ym(v)))
+            .map(|&(r, v)| (xm(r as f32), ym(v)))
             .collect();
         es_area.draw(&PathElement::new(pts, LINE_BLUE.stroke_width(2)))?;
     }
@@ -430,13 +430,13 @@ fn render_enrichment<DB: DrawingBackend>(
     let (rw, rh) = rug_area.dim_in_pixel();
     let (rw, rh) = (rw as i32, rh as i32);
     let rx1 = (rw - 8).max(3);
-    let rxm = |rank: f64| -> i32 {
+    let rxm = |rank: f32| -> i32 {
         let t = (rank / n_max).clamp(0.0, 1.0);
-        2 + ((rx1 - 2) as f64 * t).round() as i32
+        2 + ((rx1 - 2) as f32 * t).round() as i32
     };
     rug_area.draw_text("hits", &left_center(10.0), (6, 8))?;
     for &h in &term.hits {
-        let x = rxm(h as f64);
+        let x = rxm(h as f32);
         rug_area.draw(&PathElement::new(
             vec![(x, (rh - 4).max(0)), (x, (rh - 18).max(0))],
             LINE_BLUE.stroke_width(1),
@@ -446,13 +446,13 @@ fn render_enrichment<DB: DrawingBackend>(
     let (aw, ah) = ax_area.dim_in_pixel();
     let (aw, ah) = (aw as i32, ah as i32);
     let ax1 = (aw - 8).max(3);
-    let axm = |rank: f64| -> i32 {
+    let axm = |rank: f32| -> i32 {
         let t = (rank / n_max).clamp(0.0, 1.0);
-        2 + ((ax1 - 2) as f64 * t).round() as i32
+        2 + ((ax1 - 2) as f32 * t).round() as i32
     };
     let ax_style = center_mid(10.0);
     for k in 0..=4 {
-        let rank = n_max * k as f64 / 4.0;
+        let rank = n_max * k as f32 / 4.0;
         ax_area.draw_text(
             &format!("{}", rank.round() as i64),
             &ax_style,
@@ -541,10 +541,10 @@ fn prepare_enrichment<'a>(
 
 struct Panel<'a> {
     terms: Vec<&'a GseaTerm>,
-    max_sig: f64,
-    max_size: f64,
-    step: f64,
-    panel_max: f64,
+    max_sig: f32,
+    max_size: f32,
+    step: f32,
+    panel_max: f32,
 }
 
 fn prepare_panel<'a>(
@@ -555,12 +555,12 @@ fn prepare_panel<'a>(
 ) -> anyhow::Result<Panel<'a>> {
     let g = pick_gsea_group(extract_gsea(sd, db_name)?, cluster_id)?;
     let terms = pick_terms(g, top_n)?;
-    let mut max_sig = 0.0f64;
-    let mut max_size = 0.0f64;
-    let mut half = 0.0f64;
+    let mut max_sig = 0.0f32;
+    let mut max_size = 0.0f32;
+    let mut half = 0.0f32;
     for t in &terms {
         max_sig = max_sig.max(sig_of(t));
-        max_size = max_size.max(t.size as f64);
+        max_size = max_size.max(t.size as f32);
         half = half.max(t.nes.abs());
     }
     let (panel_max, step) = symmetric_axis(half, 5);
@@ -578,7 +578,7 @@ fn panel_geometry<DB: DrawingBackend>(
     p: &Panel,
     w: i32,
     h: i32,
-) -> (i32, i32, f64, Plan) {
+) -> (i32, i32, f32, Plan) {
     let style = right_center(11.0);
     let labels: Vec<String> = p
         .terms
@@ -587,8 +587,8 @@ fn panel_geometry<DB: DrawingBackend>(
         .collect();
     let x0 = label_zone_w(area, &style, &labels, 120, 620);
     let x1 = (w - DOT_RIGHT_W - 12).max(x0 + 40);
-    let y0 = 4.0f64;
-    let y1 = (h - AXIS_H) as f64;
+    let y0 = 4.0f32;
+    let y1 = (h - AXIS_H) as f32;
     let plan = plan_rows(p.terms.len(), y0, y1, 14.0);
     (x0, x1, y1, plan)
 }
@@ -648,7 +648,7 @@ fn render_gsea_dotplot<DB: DrawingBackend>(
     let row_h = plan.row_h;
     let max_r = (row_h * 0.5 - 2.0).clamp(4.0, 12.0) as i32;
     let axis_max = p.panel_max;
-    let ax = |v: f64| x0 + ((x1 - x0) as f64 * ((v + axis_max) / (2.0 * axis_max))).round() as i32;
+    let ax = |v: f32| x0 + ((x1 - x0) as f32 * ((v + axis_max) / (2.0 * axis_max))).round() as i32;
     let n_ticks = (2.0 * axis_max / p.step).round() as usize;
     let zero_x = ax(0.0);
 
@@ -656,8 +656,8 @@ fn render_gsea_dotplot<DB: DrawingBackend>(
 
     for (i, cy) in plan.cys.iter().enumerate() {
         if i % 2 == 1 {
-            let ya = (*cy as f64 - row_h * 0.5).round() as i32;
-            let yb = (*cy as f64 + row_h * 0.5).round() as i32;
+            let ya = (*cy as f32 - row_h * 0.5).round() as i32;
+            let yb = (*cy as f32 + row_h * 0.5).round() as i32;
             root.draw(&Rectangle::new(
                 [(0, ya.max(0)), (x1, yb.min(h))],
                 BAND.filled(),
@@ -668,7 +668,7 @@ fn render_gsea_dotplot<DB: DrawingBackend>(
     let grid_style = RGBColor(0xea, 0xea, 0xea).stroke_width(1);
     let grid_bot = plan.content_bot.round() as i32;
     for i in 0..=n_ticks {
-        let v = -axis_max + i as f64 * p.step;
+        let v = -axis_max + i as f32 * p.step;
         let px = ax(v);
         root.draw(&PathElement::new(vec![(px, 4), (px, grid_bot)], grid_style))?;
     }
@@ -686,7 +686,7 @@ fn render_gsea_dotplot<DB: DrawingBackend>(
             &label_style,
             (x0 - 6, cy),
         )?;
-        let r = ((max_r as f64) * (t.size as f64 / p.max_size).sqrt())
+        let r = ((max_r as f32) * (t.size as f32 / p.max_size).sqrt())
             .round()
             .max(1.0) as i32;
         root.draw(&Circle::new(
@@ -703,7 +703,7 @@ fn render_gsea_dotplot<DB: DrawingBackend>(
         if !label_tick(i, n_ticks, stride) {
             continue;
         }
-        let v = -axis_max + i as f64 * p.step;
+        let v = -axis_max + i as f32 * p.step;
         root.draw_text(&fmt_tick(v, p.step), &ax_style, (ax(v), axis_y))?;
     }
 
@@ -779,7 +779,7 @@ fn render_gsea_barplot<DB: DrawingBackend>(
     let (x0, x1, _y1, plan) = panel_geometry(&root, p, w, h);
     let row_h = plan.row_h;
     let axis_max = p.panel_max;
-    let ax = |v: f64| x0 + ((x1 - x0) as f64 * ((v + axis_max) / (2.0 * axis_max))).round() as i32;
+    let ax = |v: f32| x0 + ((x1 - x0) as f32 * ((v + axis_max) / (2.0 * axis_max))).round() as i32;
     let n_ticks = (2.0 * axis_max / p.step).round() as usize;
     let zero_x = ax(0.0);
 
@@ -787,8 +787,8 @@ fn render_gsea_barplot<DB: DrawingBackend>(
 
     for (i, cy) in plan.cys.iter().enumerate() {
         if i % 2 == 1 {
-            let ya = (*cy as f64 - row_h * 0.5).round() as i32;
-            let yb = (*cy as f64 + row_h * 0.5).round() as i32;
+            let ya = (*cy as f32 - row_h * 0.5).round() as i32;
+            let yb = (*cy as f32 + row_h * 0.5).round() as i32;
             root.draw(&Rectangle::new(
                 [(0, ya.max(0)), (x1, yb.min(h))],
                 BAND.filled(),
@@ -799,7 +799,7 @@ fn render_gsea_barplot<DB: DrawingBackend>(
     let grid_style = RGBColor(0xea, 0xea, 0xea).stroke_width(1);
     let grid_bot = plan.content_bot.round() as i32;
     for i in 0..=n_ticks {
-        let px = ax(-axis_max + i as f64 * p.step);
+        let px = ax(-axis_max + i as f32 * p.step);
         root.draw(&PathElement::new(vec![(px, 4), (px, grid_bot)], grid_style))?;
     }
     root.draw(&PathElement::new(
@@ -816,8 +816,8 @@ fn render_gsea_barplot<DB: DrawingBackend>(
             (x0 - 6, cy),
         )?;
         let px = ax(t.nes);
-        let y_top = (cy as f64 - row_h * 0.5).round() as i32;
-        let y_bot = (cy as f64 + row_h * 0.5).round() as i32 - 1;
+        let y_top = (cy as f32 - row_h * 0.5).round() as i32;
+        let y_bot = (cy as f32 + row_h * 0.5).round() as i32 - 1;
         if px != zero_x {
             root.draw(&Rectangle::new(
                 [(px.min(zero_x), y_top), (px.max(zero_x), y_bot.max(y_top))],
@@ -837,7 +837,7 @@ fn render_gsea_barplot<DB: DrawingBackend>(
         if !label_tick(i, n_ticks, stride) {
             continue;
         }
-        let v = -axis_max + i as f64 * p.step;
+        let v = -axis_max + i as f32 * p.step;
         root.draw_text(&fmt_tick(v, p.step), &ax_style, (ax(v), axis_y + 12))?;
     }
     root.draw_text(
@@ -872,7 +872,7 @@ fn tick_stride(plot_w: i32, n_ticks: usize) -> usize {
     if n_ticks == 0 {
         return 1;
     }
-    if (plot_w as f64) / (n_ticks as f64) < 46.0 {
+    if (plot_w as f32) / (n_ticks as f32) < 46.0 {
         2
     } else {
         1

@@ -25,4 +25,4 @@ del _os, _Path, _CONF
 from .riasopy import *
 from .riasopy import __all__
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"

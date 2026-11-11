@@ -33,7 +33,7 @@ pub struct GseaParams {
 
     pub rank_by: RankBy,
 
-    pub gsea_param: f64,
+    pub gsea_param: f32,
 
     pub min_gene_count: usize,
 
@@ -43,9 +43,9 @@ pub struct GseaParams {
 
     pub seed: u64,
 
-    pub pvalue_cutoff: f64,
+    pub pvalue_cutoff: f32,
 
-    pub qvalue_cutoff: f64,
+    pub qvalue_cutoff: f32,
 
     pub top_n_terms: usize,
 }
@@ -118,12 +118,12 @@ fn candidate_sets<'a>(
 struct Ranking {
     names: Vec<String>,
 
-    weights: Vec<f64>,
+    weights: Vec<f32>,
 
     pos: HashMap<String, usize>,
 }
 
-fn rank_values(cl: &ClusterMarkerResult, by: RankBy) -> Vec<f64> {
+fn rank_values(cl: &ClusterMarkerResult, by: RankBy) -> Vec<f32> {
     match by {
         RankBy::Log2fc => cl.log2fc.clone(),
         RankBy::TStat => cl.t_stats.clone(),
@@ -141,11 +141,11 @@ fn build_ranking(
     syms: &[String],
     db: &GeneSetDb,
     by: RankBy,
-    p: f64,
+    p: f32,
 ) -> Ranking {
     let stats = rank_values(cl, by);
     let m = stats.len().min(cl.gene_indices.len());
-    let mut rows: Vec<(f64, String)> = Vec::with_capacity(m);
+    let mut rows: Vec<(f32, String)> = Vec::with_capacity(m);
     for (&v, &gi) in stats.iter().zip(cl.gene_indices.iter()) {
         if !v.is_finite() {
             continue;
@@ -156,7 +156,7 @@ fn build_ranking(
     ranking_from_rows(cl.cluster_id, rows, p)
 }
 
-fn ranking_from_rows(cluster_id: i64, mut rows: Vec<(f64, String)>, p: f64) -> Ranking {
+fn ranking_from_rows(cluster_id: i64, mut rows: Vec<(f32, String)>, p: f32) -> Ranking {
     rows.sort_by(|a, b| {
         b.0.partial_cmp(&a.0)
             .unwrap_or(std::cmp::Ordering::Equal)
@@ -172,12 +172,12 @@ fn ranking_from_rows(cluster_id: i64, mut rows: Vec<(f64, String)>, p: f64) -> R
             cluster_id,
             worst,
             rows.len(),
-            100.0 * worst as f64 / rows.len() as f64
+            100.0 * worst as f32 / rows.len() as f32
         );
     }
 
     let n = rows.len();
-    let weights: Vec<f64> = rows.iter().map(|(s, _)| s.abs().powf(p)).collect();
+    let weights: Vec<f32> = rows.iter().map(|(s, _)| s.abs().powf(p)).collect();
     let mut pos = HashMap::with_capacity(n);
     let mut names = Vec::with_capacity(n);
     for (i, (_, g)) in rows.into_iter().enumerate() {
@@ -191,7 +191,7 @@ fn ranking_from_rows(cluster_id: i64, mut rows: Vec<(f64, String)>, p: f64) -> R
     }
 }
 
-fn max_tie_run(rows: &[(f64, String)]) -> usize {
+fn max_tie_run(rows: &[(f32, String)]) -> usize {
     if rows.is_empty() {
         return 0;
     }
@@ -253,8 +253,8 @@ fn gsea_one_group(
     }
 
     let mut rng = Mt19937::new(params.seed);
-    let mut obs: Vec<(f64, usize)> = Vec::with_capacity(kept.len());
-    let mut nulls: Vec<Vec<f64>> = Vec::with_capacity(kept.len());
+    let mut obs: Vec<(f32, usize)> = Vec::with_capacity(kept.len());
+    let mut nulls: Vec<Vec<f32>> = Vec::with_capacity(kept.len());
     let mut seen = SeenStamp::new(n);
     let mut buf: Vec<usize> = Vec::with_capacity(params.max_gene_count);
     for h in hits.iter() {
@@ -272,7 +272,7 @@ fn gsea_one_group(
         nulls.push(null);
     }
 
-    let ps: Vec<f64> = obs
+    let ps: Vec<f32> = obs
         .iter()
         .zip(nulls.iter())
         .map(|(&(es, _), null)| pvalue_from_null(es, null).1)
@@ -326,35 +326,35 @@ fn gsea_one_group(
 
 fn es_core(
     hits: &[usize],
-    w: &[f64],
+    w: &[f32],
     n_total: usize,
-    mut trace: Option<&mut Vec<(usize, f64)>>,
-) -> (f64, usize) {
+    mut trace: Option<&mut Vec<(usize, f32)>>,
+) -> (f32, usize) {
     let k = hits.len();
     if k == 0 || k >= n_total {
         return (0.0, 0);
     }
-    let n_r: f64 = hits.iter().map(|&q| w[q]).sum();
+    let n_r: f32 = hits.iter().map(|&q| w[q]).sum();
 
     #[allow(clippy::neg_cmp_op_on_partial_ord)]
     if !(n_r > 0.0) {
         return (0.0, 0);
     }
     let inv_r = 1.0 / n_r;
-    let inv_miss = 1.0 / (n_total - k) as f64;
+    let inv_miss = 1.0 / (n_total - k) as f32;
 
     if let Some(t) = trace.as_deref_mut() {
         t.push((0, 0.0));
     }
 
-    let mut cum = 0.0f64;
-    let mut best_max = f64::NEG_INFINITY;
+    let mut cum = 0.0f32;
+    let mut best_max = f32::NEG_INFINITY;
     let mut arg_max = 0usize;
-    let mut best_min = f64::INFINITY;
+    let mut best_min = f32::INFINITY;
     let mut arg_min = 0usize;
     for (i, &q) in hits.iter().enumerate() {
         if q > 0 {
-            let before = cum - (q - i) as f64 * inv_miss;
+            let before = cum - (q - i) as f32 * inv_miss;
             if let Some(t) = trace.as_deref_mut() {
                 t.push((q - 1, before));
             }
@@ -364,7 +364,7 @@ fn es_core(
             }
         }
         cum += w[q] * inv_r;
-        let after = cum - (q - i) as f64 * inv_miss;
+        let after = cum - (q - i) as f32 * inv_miss;
         if let Some(t) = trace.as_deref_mut() {
             t.push((q, after));
         }
@@ -390,17 +390,17 @@ fn es_core(
     }
 }
 
-fn es_from_sorted(hits: &[usize], w: &[f64], n_total: usize) -> (f64, usize) {
+fn es_from_sorted(hits: &[usize], w: &[f32], n_total: usize) -> (f32, usize) {
     es_core(hits, w, n_total, None)
 }
 
 fn es_trace(
     hits: &[usize],
-    w: &[f64],
+    w: &[f32],
     n_total: usize,
     max_pts: usize,
-) -> (f64, usize, Vec<(usize, f64)>) {
-    let mut trace: Vec<(usize, f64)> = Vec::with_capacity(2 * hits.len() + 2);
+) -> (f32, usize, Vec<(usize, f32)>) {
+    let mut trace: Vec<(usize, f32)> = Vec::with_capacity(2 * hits.len() + 2);
     let (es, rank_at) = es_core(hits, w, n_total, Some(&mut trace));
     if trace.is_empty() {
         trace.push((0, 0.0));
@@ -410,7 +410,7 @@ fn es_trace(
     (es, rank_at, trace)
 }
 
-fn decimate_trace(trace: &mut Vec<(usize, f64)>, max_pts: usize, rank_at_es: usize) {
+fn decimate_trace(trace: &mut Vec<(usize, f32)>, max_pts: usize, rank_at_es: usize) {
     if max_pts == 0 || trace.len() <= max_pts {
         return;
     }
@@ -479,14 +479,14 @@ fn sample_sorted(
     buf.sort_unstable();
 }
 
-fn pvalue_from_null(es: f64, null: &[f64]) -> (f64, f64) {
+fn pvalue_from_null(es: f32, null: &[f32]) -> (f32, f32) {
     if null.is_empty() {
         return (0.0, 1.0);
     }
     let mut ge0 = 0usize;
     let mut lt0 = 0usize;
-    let mut sum_pos = 0.0f64;
-    let mut sum_neg = 0.0f64;
+    let mut sum_pos = 0.0f32;
+    let mut sum_neg = 0.0f32;
     for &e in null {
         if e >= 0.0 {
             ge0 += 1;
@@ -497,19 +497,19 @@ fn pvalue_from_null(es: f64, null: &[f64]) -> (f64, f64) {
         }
     }
     if es >= 0.0 {
-        let mean = if ge0 > 0 { sum_pos / ge0 as f64 } else { 0.0 };
+        let mean = if ge0 > 0 { sum_pos / ge0 as f32 } else { 0.0 };
         let nes = if mean > 0.0 { es / mean } else { 0.0 };
         let n_ge = null.iter().filter(|&&x| x >= es).count();
-        (nes, (1.0 + n_ge as f64) / (1.0 + ge0 as f64))
+        (nes, (1.0 + n_ge as f32) / (1.0 + ge0 as f32))
     } else {
-        let mean = if lt0 > 0 { sum_neg / lt0 as f64 } else { 0.0 };
+        let mean = if lt0 > 0 { sum_neg / lt0 as f32 } else { 0.0 };
         let nes = if mean < 0.0 { es / mean.abs() } else { 0.0 };
         let n_le = null.iter().filter(|&&x| x <= es).count();
-        (nes, (1.0 + n_le as f64) / (1.0 + lt0 as f64))
+        (nes, (1.0 + n_le as f32) / (1.0 + lt0 as f32))
     }
 }
 
-fn leading_edge(es: f64, rank_at_es: usize, hits: &[usize], names: &[String]) -> Vec<String> {
+fn leading_edge(es: f32, rank_at_es: usize, hits: &[usize], names: &[String]) -> Vec<String> {
     hits.iter()
         .filter(|&&q| {
             if es >= 0.0 {

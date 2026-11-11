@@ -6,7 +6,7 @@ use crate::core::{ExpMatrix, SoData};
 
 pub const SCALE_LAYER: &str = "scale";
 
-pub fn scale(data: &mut SoData, zero_center: bool, max_value: Option<f64>, write_layer: bool) {
+pub fn scale(data: &mut SoData, zero_center: bool, max_value: Option<f32>, write_layer: bool) {
     if data.n_obs() < 2 {
         return;
     }
@@ -29,7 +29,7 @@ pub fn scale(data: &mut SoData, zero_center: bool, max_value: Option<f64>, write
     }
 }
 
-fn scale_dense(arr: &mut Array2<f32>, zero_center: bool, max_value: Option<f64>) {
+fn scale_dense(arr: &mut Array2<f32>, zero_center: bool, max_value: Option<f32>) {
     let (n_rows, n_cols) = arr.dim();
     if n_rows == 0 || n_cols == 0 {
         return;
@@ -65,7 +65,6 @@ fn scale_dense(arr: &mut Array2<f32>, zero_center: bool, max_value: Option<f64>)
     });
 
     if let Some(mv) = max_value {
-        let mv = mv as f32;
         slice.par_iter_mut().for_each(|v| {
             if *v > mv {
                 *v = mv;
@@ -74,7 +73,7 @@ fn scale_dense(arr: &mut Array2<f32>, zero_center: bool, max_value: Option<f64>)
     }
 }
 
-fn scale_sparse_inplace(csr: &mut CsrMatrix<f32>, max_value: Option<f64>) {
+fn scale_sparse_inplace(csr: &mut CsrMatrix<f32>, max_value: Option<f32>) {
     let n_rows = csr.nrows();
     let n_cols = csr.ncols();
     if n_rows == 0 || n_cols == 0 {
@@ -93,7 +92,7 @@ fn scale_sparse_inplace(csr: &mut CsrMatrix<f32>, max_value: Option<f64>) {
 
     let col_idx = csr.col_indices().to_vec();
     let values = csr.values_mut();
-    let mv = max_value.map(|v| v as f32);
+    let mv = max_value;
     values.par_iter_mut().enumerate().for_each(|(k, v)| {
         let j = col_idx[k];
         *v /= std[j];

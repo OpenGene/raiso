@@ -92,13 +92,13 @@ fn to_pyerr(e: anyhow::Error) -> PyErr {
     PyRuntimeError::new_err(format!("{e:#}"))
 }
 
-fn neighbors_matrix(py: Python<'_>, csr: &CsrMatrix<f64>) -> PyResult<Py<PyAny>> {
+fn neighbors_matrix(py: Python<'_>, csr: &CsrMatrix<f32>) -> PyResult<Py<PyAny>> {
     let n = csr.nrows();
     if n <= DENSE_KNN_THRESHOLD {
         Ok(csr_to_dense(csr).into_pyarray(py).into_any().unbind())
     } else {
         let dict = PyDict::new(py);
-        let data: Vec<f64> = csr.values().iter().copied().collect();
+        let data: Vec<f32> = csr.values().iter().copied().collect();
         let indices: Vec<i64> = csr.col_indices().iter().map(|&x| x as i64).collect();
         let indptr: Vec<i64> = csr.row_offsets().iter().map(|&x| x as i64).collect();
         dict.set_item("data", data.into_pyarray(py))?;
@@ -115,10 +115,10 @@ fn dataframe_to_dict(py: Python<'_>, df: &DataFrame) -> PyResult<Py<PyDict>> {
         match col.dtype() {
             DataType::Float64 => {
                 let ca = col
-                    .f64()
+                    .f32()
                     .map_err(|e| PyRuntimeError::new_err(format!("column '{name}': {e}")))?;
-                let v: Vec<f64> = (0..ca.len())
-                    .map(|i| ca.get(i).unwrap_or(f64::NAN))
+                let v: Vec<f32> = (0..ca.len())
+                    .map(|i| ca.get(i).unwrap_or(f32::NAN))
                     .collect();
                 dict.set_item(name, Array1::from_vec(v).into_pyarray(py))?;
             }
@@ -378,7 +378,7 @@ impl PySoData {
 
     #[allow(non_snake_case)]
     #[getter]
-    fn X(&self, py: Python<'_>) -> PyResult<Py<PyArray2<f64>>> {
+    fn X(&self, py: Python<'_>) -> PyResult<Py<PyArray2<f32>>> {
         let exp =
             self.inner.exp_matrix.as_ref().ok_or_else(|| {
                 pyo3::exceptions::PyAttributeError::new_err("exp_matrix is empty")
@@ -403,7 +403,7 @@ impl PySoData {
     }
 
     #[getter]
-    fn position(&self, py: Python<'_>) -> Option<Py<PyArray2<f64>>> {
+    fn position(&self, py: Python<'_>) -> Option<Py<PyArray2<f32>>> {
         self.inner
             .position
             .as_ref()
@@ -442,11 +442,11 @@ impl PySoData {
     fn filter_cells(
         &mut self,
         py: Python<'_>,
-        min_counts: Option<f64>,
-        max_counts: Option<f64>,
+        min_counts: Option<f32>,
+        max_counts: Option<f32>,
         min_genes: Option<i64>,
         max_genes: Option<i64>,
-        pct_counts_mt: Option<f64>,
+        pct_counts_mt: Option<f32>,
         cell_list: Option<Vec<String>>,
         excluded: bool,
         write_layer: bool,
@@ -474,9 +474,9 @@ impl PySoData {
         py: Python<'_>,
         min_cells: Option<i64>,
         max_cells: Option<i64>,
-        min_counts: Option<f64>,
-        max_counts: Option<f64>,
-        mean_umi_gt: Option<f64>,
+        min_counts: Option<f32>,
+        max_counts: Option<f32>,
+        mean_umi_gt: Option<f32>,
         gene_list: Option<Vec<String>>,
         excluded: bool,
         filter_mt_genes: bool,
@@ -502,10 +502,10 @@ impl PySoData {
     fn filter_coordinates(
         &mut self,
         py: Python<'_>,
-        min_x: Option<f64>,
-        max_x: Option<f64>,
-        min_y: Option<f64>,
-        max_y: Option<f64>,
+        min_x: Option<f32>,
+        max_x: Option<f32>,
+        min_y: Option<f32>,
+        max_y: Option<f32>,
         write_layer: bool,
     ) {
         py.detach(|| {
@@ -514,7 +514,7 @@ impl PySoData {
     }
 
     #[pyo3(signature = (target_sum, *, write_layer=false))]
-    fn normalize_total(&mut self, py: Python<'_>, target_sum: f64, write_layer: bool) {
+    fn normalize_total(&mut self, py: Python<'_>, target_sum: f32, write_layer: bool) {
         py.detach(|| core_normalize_total(&mut self.inner, Some(target_sum), write_layer));
     }
 
@@ -528,7 +528,7 @@ impl PySoData {
         &mut self,
         py: Python<'_>,
         zero_center: bool,
-        max_value: Option<f64>,
+        max_value: Option<f32>,
         write_layer: bool,
     ) {
         py.detach(|| core_scale(&mut self.inner, zero_center, max_value, write_layer));
@@ -574,18 +574,18 @@ impl PySoData {
     fn harmony(
         &mut self,
         py: Python<'_>,
-        sigma: f64,
-        theta: Option<f64>,
-        lamb: Option<f64>,
-        tau: f64,
-        block_size: f64,
+        sigma: f32,
+        theta: Option<f32>,
+        lamb: Option<f32>,
+        tau: f32,
+        block_size: f32,
         max_iter_harmony: usize,
         max_iter_kmeans: usize,
-        epsilon_cluster: f64,
-        epsilon_harmony: f64,
+        epsilon_cluster: f32,
+        epsilon_harmony: f32,
         random_state: u64,
         nclust: Option<usize>,
-    ) -> PyResult<Py<PyArray2<f64>>> {
+    ) -> PyResult<Py<PyArray2<f32>>> {
         let params = HarmonyParams {
             nclust,
             sigma,
@@ -640,8 +640,8 @@ impl PySoData {
         &mut self,
         py: Python<'_>,
         n_components: usize,
-        min_dist: f64,
-        spread: f64,
+        min_dist: f32,
+        spread: f32,
         random_state: u64,
     ) -> PyResult<()> {
         py.detach(|| {
@@ -657,13 +657,13 @@ impl PySoData {
     }
 
     #[pyo3(signature = (resolution=1.0, random_state=0))]
-    fn leiden(&mut self, py: Python<'_>, resolution: f64, random_state: u64) -> PyResult<()> {
+    fn leiden(&mut self, py: Python<'_>, resolution: f32, random_state: u64) -> PyResult<()> {
         py.detach(|| core_run_leiden(&mut self.inner, resolution, random_state));
         Ok(())
     }
 
     #[pyo3(signature = (resolution=1.0, random_state=0))]
-    fn louvain(&mut self, py: Python<'_>, resolution: f64, random_state: u64) -> PyResult<()> {
+    fn louvain(&mut self, py: Python<'_>, resolution: f32, random_state: u64) -> PyResult<()> {
         py.detach(|| core_run_louvain(&mut self.inner, resolution, random_state));
         Ok(())
     }
@@ -749,8 +749,8 @@ impl PySoData {
         py: Python<'_>,
         reference: &PySingleRRef,
         cluster_labels: Option<Vec<i64>>,
-        quantile: f64,
-        fine_tune_threshold: f64,
+        quantile: f32,
+        fine_tune_threshold: f32,
         fine_tune_times: usize,
     ) -> PyResult<Py<PyDict>> {
         let reference = reference.inner.clone();
@@ -840,12 +840,12 @@ impl PySoData {
         path: Option<String>,
         color_by: &str,
         ncols: usize,
-        dot_size: Option<f64>,
+        dot_size: Option<f32>,
         title: Option<String>,
         width: Option<u32>,
         height: Option<u32>,
-        vmin: Option<f64>,
-        vmax: Option<f64>,
+        vmin: Option<f32>,
+        vmax: Option<f32>,
         return_bytes: bool,
     ) -> PyResult<Py<PyAny>> {
         let color_by = color_by.to_string();
@@ -1077,9 +1077,9 @@ impl PySoData {
         title: Option<String>,
         width: Option<u32>,
         height: Option<u32>,
-        dot_size: Option<f64>,
-        vmin: Option<f64>,
-        vmax: Option<f64>,
+        dot_size: Option<f32>,
+        vmin: Option<f32>,
+        vmax: Option<f32>,
         return_bytes: bool,
     ) -> PyResult<Py<PyAny>> {
         let title = title.as_deref();
@@ -1133,7 +1133,7 @@ impl PySoData {
         title: Option<String>,
         x_label: &str,
         y_label: &str,
-        dot_size: Option<f64>,
+        dot_size: Option<f32>,
         width: Option<u32>,
         height: Option<u32>,
         return_bytes: bool,
@@ -1217,7 +1217,7 @@ impl PySoData {
         path: Option<String>,
         color: Option<String>,
         components: &str,
-        dot_size: Option<f64>,
+        dot_size: Option<f32>,
         width: Option<u32>,
         height: Option<u32>,
         return_bytes: bool,
@@ -1292,14 +1292,14 @@ impl PySoData {
         title: Option<String>,
         x_label: Option<String>,
         y_label: Option<String>,
-        dot_size: Option<f64>,
+        dot_size: Option<f32>,
         width: Option<u32>,
         height: Option<u32>,
         show_plotting_scale: Option<bool>,
-        plotting_scale_width: Option<f64>,
+        plotting_scale_width: Option<f32>,
         reorganize_coordinate: Option<usize>,
-        horizontal_offset_additional: f64,
-        vertical_offset_additional: f64,
+        horizontal_offset_additional: f32,
+        vertical_offset_additional: f32,
         split_by_batch: bool,
         return_bytes: bool,
     ) -> PyResult<Py<PyAny>> {
@@ -1385,14 +1385,14 @@ impl PySoData {
         title: Option<String>,
         x_label: Option<String>,
         y_label: Option<String>,
-        dot_size: Option<f64>,
+        dot_size: Option<f32>,
         width: Option<u32>,
         height: Option<u32>,
         show_plotting_scale: Option<bool>,
-        plotting_scale_width: Option<f64>,
+        plotting_scale_width: Option<f32>,
         reorganize_coordinate: Option<usize>,
-        horizontal_offset_additional: f64,
-        vertical_offset_additional: f64,
+        horizontal_offset_additional: f32,
+        vertical_offset_additional: f32,
         split_by_batch: bool,
         return_bytes: bool,
     ) -> PyResult<Py<PyAny>> {
@@ -1503,10 +1503,10 @@ impl PySoData {
         py: Python<'_>,
         db: Py<PyGeneSetDb>,
         category: Option<String>,
-        gene_pvalue_cutoff: f64,
-        gene_log2fc_cutoff: f64,
-        pvalue_cutoff: f64,
-        qvalue_cutoff: f64,
+        gene_pvalue_cutoff: f32,
+        gene_log2fc_cutoff: f32,
+        pvalue_cutoff: f32,
+        qvalue_cutoff: f32,
         min_gene_count: usize,
         max_gene_count: usize,
         top_n_terms: usize,
@@ -1541,13 +1541,13 @@ impl PySoData {
         db: Py<PyGeneSetDb>,
         category: Option<String>,
         rank_by: &str,
-        gsea_param: f64,
+        gsea_param: f32,
         min_gene_count: usize,
         max_gene_count: usize,
         n_perm: usize,
         seed: u64,
-        pvalue_cutoff: f64,
-        qvalue_cutoff: f64,
+        pvalue_cutoff: f32,
+        qvalue_cutoff: f32,
         top_n_terms: usize,
     ) -> PyResult<Py<PyDict>> {
         let params = GseaParams {
@@ -1791,7 +1791,7 @@ impl PySingleRRef {
     #[pyo3(signature = (ref_x, ref_genes, ref_labels))]
     fn new(
         _py: Python<'_>,
-        ref_x: PyReadonlyArray2<'_, f64>,
+        ref_x: PyReadonlyArray2<'_, f32>,
         ref_genes: Vec<String>,
         ref_labels: Vec<String>,
     ) -> PyResult<Self> {
@@ -1809,7 +1809,7 @@ impl PySingleRRef {
     }
 
     #[getter]
-    fn ref_x(&self, py: Python<'_>) -> Py<PyArray2<f64>> {
+    fn ref_x(&self, py: Python<'_>) -> Py<PyArray2<f32>> {
         self.inner.ref_x().clone().into_pyarray(py).unbind()
     }
 

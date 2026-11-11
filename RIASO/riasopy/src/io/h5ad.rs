@@ -18,14 +18,14 @@ pub fn read_h5ad(path: &str, spatial_key: &str, save_counts_layer: bool) -> Resu
 
     if file.link_exists("X") {
         if let Ok(ds) = file.dataset("X") {
-            let arr: Array2<f64> = read_dense_x(&ds)?;
-            data.exp_matrix = Some(ExpMatrix::Dense(arr.mapv(|v| v as f32)));
+            let arr: Array2<f32> = read_dense_x(&ds)?;
+            data.exp_matrix = Some(ExpMatrix::Dense(arr.mapv(|v| v)));
         } else if let Ok(group) = file.group("X") {
             let csr = read_sparse_matrix(&group)?;
             let (nrows, ncols) = (csr.nrows(), csr.ncols());
             let offsets = csr.row_offsets().to_vec();
             let cols = csr.col_indices().to_vec();
-            let vals: Vec<f32> = csr.values().iter().map(|&v| v as f32).collect();
+            let vals: Vec<f32> = csr.values().to_vec();
             data.exp_matrix = Some(ExpMatrix::Sparse(
                 CsrMatrix::try_from_csr_data(nrows, ncols, offsets, cols, vals)
                     .map_err(|e| anyhow::anyhow!("read_h5ad: failed to build sparse X: {e:?}"))?,
@@ -70,7 +70,7 @@ pub fn read_h5ad(path: &str, spatial_key: &str, save_counts_layer: bool) -> Resu
     Ok(data)
 }
 
-pub(crate) fn read_sparse_matrix(group: &Group) -> Result<CsrMatrix<f64>> {
+pub(crate) fn read_sparse_matrix(group: &Group) -> Result<CsrMatrix<f32>> {
     let enc_type =
         read_attr_string(group, "encoding-type").unwrap_or_else(|_| "csr_matrix".to_string());
 
@@ -80,7 +80,7 @@ pub(crate) fn read_sparse_matrix(group: &Group) -> Result<CsrMatrix<f64>> {
         return read_csc_as_csr(group, n_rows, n_cols);
     }
 
-    let data: Array1<f64> = read_data_as_f64(&group.dataset("data")?)?;
+    let data: Array1<f32> = read_data_as_f32(&group.dataset("data")?)?;
     let (indices, indptr) = read_sparse_indices_usize(group)?;
 
     let data_slice = data.as_slice().unwrap_or(&[]);
@@ -112,7 +112,7 @@ pub(crate) fn read_sparse_matrix(group: &Group) -> Result<CsrMatrix<f64>> {
         let start = ptr_slice[row];
         let end = ptr_slice[row + 1];
 
-        let mut pairs: Vec<(usize, f64)> = (start..end)
+        let mut pairs: Vec<(usize, f32)> = (start..end)
             .map(|i| (idx_slice[i], data_slice[i]))
             .collect();
         pairs.sort_by_key(|(col, _)| *col);
@@ -128,9 +128,9 @@ pub(crate) fn read_sparse_matrix(group: &Group) -> Result<CsrMatrix<f64>> {
         .map_err(|e| anyhow::anyhow!("Failed to construct CSR matrix: {:?}", e))
 }
 
-fn read_csc_as_csr(group: &Group, n_rows: usize, n_cols: usize) -> Result<CsrMatrix<f64>> {
+fn read_csc_as_csr(group: &Group, n_rows: usize, n_cols: usize) -> Result<CsrMatrix<f32>> {
     use nalgebra_sparse::csc::CscMatrix;
-    let data: Array1<f64> = read_data_as_f64(&group.dataset("data")?)?;
+    let data: Array1<f32> = read_data_as_f32(&group.dataset("data")?)?;
     let (indices, indptr) = read_sparse_indices_usize(group)?;
 
     let csc = CscMatrix::try_from_csc_data(
@@ -217,7 +217,7 @@ fn read_index_only(group: &Group, col_name: &str) -> Result<DataFrame> {
     } else if let Ok(arr) = ds.read_1d::<i64>() {
         let strings: Vec<String> = arr.iter().map(|v| v.to_string()).collect();
         Column::new(col_name.into(), strings)
-    } else if let Ok(arr) = ds.read_1d::<f64>() {
+    } else if let Ok(arr) = ds.read_1d::<f32>() {
         let strings: Vec<String> = arr.iter().map(|v| format!("{}", v)).collect();
         Column::new(col_name.into(), strings)
     } else {
@@ -288,56 +288,56 @@ fn read_attr_string(loc: &hdf5::Location, name: &str) -> Result<String> {
     }
 }
 
-pub(crate) fn read_dense_x(ds: &Dataset) -> Result<Array2<f64>> {
+pub(crate) fn read_dense_x(ds: &Dataset) -> Result<Array2<f32>> {
     let dtype = ds.dtype()?;
     let desc = dtype.to_descriptor()?;
     use hdf5::types::TypeDescriptor;
     match desc {
         TypeDescriptor::Float(_) => {
-            if let Ok(arr) = ds.read_2d::<f64>() {
+            if let Ok(arr) = ds.read_2d::<f32>() {
                 return Ok(arr);
             }
             let arr: Array2<f32> = ds.read_2d::<f32>()?;
-            Ok(arr.mapv(|v| v as f64))
+            Ok(arr.mapv(|v| v))
         }
         TypeDescriptor::Integer(_) => {
             if let Ok(arr) = ds.read_2d::<i64>() {
-                return Ok(arr.mapv(|v| v as f64));
+                return Ok(arr.mapv(|v| v as f32));
             }
             let arr: Array2<i32> = ds.read_2d::<i32>()?;
-            Ok(arr.mapv(|v| v as f64))
+            Ok(arr.mapv(|v| v as f32))
         }
         TypeDescriptor::Unsigned(_) => {
             let arr: Array2<u32> = ds.read_2d::<u32>()?;
-            Ok(arr.mapv(|v| v as f64))
+            Ok(arr.mapv(|v| v as f32))
         }
-        _ => ds.read_2d::<f64>().map_err(|e| anyhow::anyhow!("{}", e)),
+        _ => ds.read_2d::<f32>().map_err(|e| anyhow::anyhow!("{}", e)),
     }
 }
 
-fn read_data_as_f64(ds: &Dataset) -> Result<Array1<f64>> {
+fn read_data_as_f32(ds: &Dataset) -> Result<Array1<f32>> {
     let dtype = ds.dtype()?;
     let desc = dtype.to_descriptor()?;
     use hdf5::types::TypeDescriptor;
     match desc {
         TypeDescriptor::Float(_) => {
-            if let Ok(arr) = ds.read_1d::<f64>() {
+            if let Ok(arr) = ds.read_1d::<f32>() {
                 return Ok(arr);
             }
             let arr: Array1<f32> = ds.read_1d::<f32>()?;
-            Ok(arr.mapv(|v| v as f64))
+            Ok(arr.mapv(|v| v))
         }
         TypeDescriptor::Integer(_) => {
             if let Ok(arr) = ds.read_1d::<i64>() {
-                return Ok(arr.mapv(|v| v as f64));
+                return Ok(arr.mapv(|v| v as f32));
             }
             let arr: Array1<i32> = ds.read_1d::<i32>()?;
-            Ok(arr.mapv(|v| v as f64))
+            Ok(arr.mapv(|v| v as f32))
         }
         TypeDescriptor::Unsigned(_) => {
             let arr: Array1<u32> = ds.read_1d::<u32>()?;
-            Ok(arr.mapv(|v| v as f64))
+            Ok(arr.mapv(|v| v as f32))
         }
-        _ => ds.read_1d::<f64>().map_err(|e| anyhow::anyhow!("{}", e)),
+        _ => ds.read_1d::<f32>().map_err(|e| anyhow::anyhow!("{}", e)),
     }
 }

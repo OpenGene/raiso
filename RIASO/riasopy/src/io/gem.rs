@@ -253,8 +253,8 @@ pub fn read_gem(
 
     let mut pos_flat = Vec::with_capacity(n_cells * 2);
     for &b in &sorted_bins {
-        pos_flat.push(bin_x(b) as f64);
-        pos_flat.push(bin_y(b) as f64);
+        pos_flat.push(bin_x(b) as f32);
+        pos_flat.push(bin_y(b) as f32);
     }
     data.position = Some(
         Array2::from_shape_vec((n_cells, 2), pos_flat)
