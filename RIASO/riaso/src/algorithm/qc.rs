@@ -28,7 +28,7 @@ pub fn cal_qc(data: &mut SoData) {
     let (row_sums, row_nnz, col_sums, col_nnz, mt_counts) = exp_metrics(exp, &mt_mask);
 
     if let Some(obs) = data.obs.as_mut() {
-        let pct_mt: Vec<f64> = (0..n_rows)
+        let pct_mt: Vec<f32> = (0..n_rows)
             .map(|r| {
                 if row_sums[r] != 0.0 {
                     mt_counts[r] / row_sums[r] * 100.0
@@ -43,10 +43,10 @@ pub fn cal_qc(data: &mut SoData) {
     }
 
     if let Some(var) = data.var.as_mut() {
-        let mean_umi: Vec<f64> = (0..n_cols)
+        let mean_umi: Vec<f32> = (0..n_cols)
             .map(|c| {
                 if col_nnz[c] != 0 {
-                    col_sums[c] / col_nnz[c] as f64
+                    col_sums[c] / col_nnz[c] as f32
                 } else {
                     0.0
                 }
@@ -61,18 +61,18 @@ pub fn cal_qc(data: &mut SoData) {
 fn exp_metrics(
     exp: &ExpMatrix,
     mt_mask: &[bool],
-) -> (Vec<f64>, Vec<i64>, Vec<f64>, Vec<i64>, Vec<f64>) {
+) -> (Vec<f32>, Vec<i64>, Vec<f32>, Vec<i64>, Vec<f32>) {
     let n_rows = exp.n_rows();
     let n_cols = exp.n_cols();
 
-    type RowAcc = (Vec<f64>, Vec<i64>, Vec<f64>, Vec<i64>, Vec<f64>);
+    type RowAcc = (Vec<f32>, Vec<i64>, Vec<f32>, Vec<i64>, Vec<f32>);
     let zero = || -> RowAcc {
         (
-            vec![0f64; n_rows],
+            vec![0f32; n_rows],
             vec![0i64; n_rows],
-            vec![0f64; n_cols],
+            vec![0f32; n_cols],
             vec![0i64; n_cols],
-            vec![0f64; n_rows],
+            vec![0f32; n_rows],
         )
     };
 
@@ -81,7 +81,7 @@ fn exp_metrics(
             .into_par_iter()
             .fold(zero, |mut a, r| {
                 for c in 0..n_cols {
-                    let v = arr[[r, c]] as f64;
+                    let v = arr[[r, c]];
                     if v != 0.0 {
                         a.0[r] += v;
                         a.1[r] += 1;
@@ -115,7 +115,7 @@ fn exp_metrics(
                 .fold(zero, |mut a, r| {
                     for i in offsets[r]..offsets[r + 1] {
                         let c = cols[i];
-                        let v = vals[i] as f64;
+                        let v = vals[i];
                         if v != 0.0 {
                             a.0[r] += v;
                             a.1[r] += 1;

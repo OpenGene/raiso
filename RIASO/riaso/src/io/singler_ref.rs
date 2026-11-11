@@ -10,7 +10,7 @@ use super::h5ad::{read_dense_x, read_index_strings, read_obs_column_strings, rea
 pub fn read_ref(path: &str, label_key: &str, gene_key: Option<&str>) -> Result<SingleRRef> {
     let file = File::open(path)?;
 
-    let ref_x: Array2<f64> = if let Ok(ds) = file.dataset("X") {
+    let ref_x: Array2<f32> = if let Ok(ds) = file.dataset("X") {
         read_dense_x(&ds)?
     } else if let Ok(group) = file.group("X") {
         csr_to_dense(&read_sparse_matrix(&group)?)

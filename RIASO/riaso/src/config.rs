@@ -123,11 +123,11 @@ pub struct Config {
     pub io: Io,
     pub steps: Steps,
 
-    pub min_counts: Option<f64>,
-    pub max_counts: Option<f64>,
+    pub min_counts: Option<f32>,
+    pub max_counts: Option<f32>,
     pub min_genes: Option<i64>,
     pub max_genes: Option<i64>,
-    pub pct_counts_mt: Option<f64>,
+    pub pct_counts_mt: Option<f32>,
 
     pub cell_list: Option<PathBuf>,
 
@@ -135,22 +135,22 @@ pub struct Config {
 
     pub min_cells: Option<i64>,
     pub max_cells: Option<i64>,
-    pub gene_min_counts: Option<f64>,
-    pub gene_max_counts: Option<f64>,
-    pub gene_mean_umi: Option<f64>,
+    pub gene_min_counts: Option<f32>,
+    pub gene_max_counts: Option<f32>,
+    pub gene_mean_umi: Option<f32>,
 
     pub gene_list: Option<PathBuf>,
     pub exclude_genes: bool,
     pub filter_mt_genes: bool,
 
-    pub min_x: Option<f64>,
-    pub max_x: Option<f64>,
-    pub min_y: Option<f64>,
-    pub max_y: Option<f64>,
+    pub min_x: Option<f32>,
+    pub max_x: Option<f32>,
+    pub min_y: Option<f32>,
+    pub max_y: Option<f32>,
 
-    pub target_sum: Option<f64>,
+    pub target_sum: Option<f32>,
     pub zero_center: bool,
-    pub max_value: Option<f64>,
+    pub max_value: Option<f32>,
 
     pub n_top_genes: usize,
 
@@ -164,11 +164,11 @@ pub struct Config {
     pub n_neighbors: usize,
     pub n_pcs_neighbors: Option<usize>,
     pub umap_components: usize,
-    pub min_dist: f64,
-    pub spread: f64,
+    pub min_dist: f32,
+    pub spread: f32,
 
     pub cluster_alg: ClusterAlg,
-    pub resolution: f64,
+    pub resolution: f32,
 
     pub top_n: usize,
 
@@ -183,17 +183,17 @@ pub struct Config {
 
     pub singler: SingleRParams,
 
-    pub ora_gene_pvalue_cutoff: f64,
-    pub ora_gene_log2fc_cutoff: f64,
+    pub ora_gene_pvalue_cutoff: f32,
+    pub ora_gene_log2fc_cutoff: f32,
     pub ora_min_gene_count: usize,
     pub ora_max_gene_count: usize,
     pub ora_top_n_terms: usize,
 
     pub ora_category: Option<String>,
 
-    pub ora_pvalue_cutoff: Option<f64>,
+    pub ora_pvalue_cutoff: Option<f32>,
 
-    pub ora_qvalue_cutoff: Option<f64>,
+    pub ora_qvalue_cutoff: Option<f32>,
 
     pub gsea: GseaParams,
 

@@ -20,7 +20,7 @@ const LEGEND_GAP: i32 = 6;
 
 const CHAR_W: i32 = 7;
 
-const VIRIDIS_ANCHORS: [(f64, (u8, u8, u8)); 5] = [
+const VIRIDIS_ANCHORS: [(f32, (u8, u8, u8)); 5] = [
     (0.00, (0x44, 0x01, 0x54)),
     (0.25, (0x3b, 0x52, 0x8b)),
     (0.50, (0x21, 0x91, 0x8c)),
@@ -28,14 +28,14 @@ const VIRIDIS_ANCHORS: [(f64, (u8, u8, u8)); 5] = [
     (1.00, (0xfd, 0xe7, 0x25)),
 ];
 
-fn viridis_colormap(t: f64) -> RGBColor {
+fn viridis_colormap(t: f32) -> RGBColor {
     let t = t.clamp(0.0, 1.0);
     for w in VIRIDIS_ANCHORS.windows(2) {
         let (t0, c0) = w[0];
         let (t1, c1) = w[1];
         if t <= t1 {
             let f = (t - t0) / (t1 - t0);
-            let lerp = |a: u8, b: u8| (a as f64 + (b as f64 - a as f64) * f).round() as u8;
+            let lerp = |a: u8, b: u8| (a as f32 + (b as f32 - a as f32) * f).round() as u8;
             return RGBColor(lerp(c0.0, c1.0), lerp(c0.1, c1.1), lerp(c0.2, c1.2));
         }
     }
@@ -44,7 +44,7 @@ fn viridis_colormap(t: f64) -> RGBColor {
 }
 
 struct ScoreHeatmapData {
-    mat: Array2<f64>,
+    mat: Array2<f32>,
 
     label_names: Vec<String>,
 
@@ -57,17 +57,17 @@ struct ScoreHeatmapData {
 
     cluster_legend: Vec<(String, RGBColor)>,
 
-    vmin: f64,
-    vmax: f64,
+    vmin: f32,
+    vmax: f32,
 
-    cmap: fn(f64) -> RGBColor,
+    cmap: fn(f32) -> RGBColor,
 }
 
-fn assigned_labels(scores: &Array2<f64>, labels: &[String]) -> Vec<String> {
+fn assigned_labels(scores: &Array2<f32>, labels: &[String]) -> Vec<String> {
     (0..scores.nrows())
         .map(|c| {
             let mut best = 0usize;
-            let mut bestv = f64::NEG_INFINITY;
+            let mut bestv = f32::NEG_INFINITY;
             for l in 0..scores.ncols() {
                 let v = scores[[c, l]];
                 if v > bestv {
@@ -81,7 +81,7 @@ fn assigned_labels(scores: &Array2<f64>, labels: &[String]) -> Vec<String> {
 }
 
 fn pick_labels(
-    scores: &Array2<f64>,
+    scores: &Array2<f32>,
     assigned: &[String],
     labels: &[String],
     max_labels: usize,
@@ -93,7 +93,7 @@ fn pick_labels(
             times_best[l] += 1;
         }
     }
-    let mut secondary = vec![f64::NEG_INFINITY; n_labels];
+    let mut secondary = vec![f32::NEG_INFINITY; n_labels];
     for c in 0..scores.nrows() {
         for l in 0..n_labels {
             secondary[l] = secondary[l].max(scores[[c, l]]);
@@ -114,10 +114,10 @@ fn pick_labels(
     idx
 }
 
-fn normalize_by_cluster(mat: &mut Array2<f64>) {
+fn normalize_by_cluster(mat: &mut Array2<f32>) {
     for mut col in mat.columns_mut() {
-        let mut mn = f64::INFINITY;
-        let mut mx = f64::NEG_INFINITY;
+        let mut mn = f32::INFINITY;
+        let mut mx = f32::NEG_INFINITY;
         for &v in col.iter() {
             if v.is_finite() {
                 mn = mn.min(v);
@@ -179,7 +179,7 @@ fn prepare(sd: &SoData, max_labels: usize, normalize: bool) -> anyhow::Result<Sc
     let mut order: Vec<usize> = (0..n_clusters).collect();
     order.sort_by(|&a, &b| assigned[a].cmp(&assigned[b]).then(a.cmp(&b)));
 
-    let mut mat = Array2::<f64>::zeros((shown.len(), n_clusters));
+    let mut mat = Array2::<f32>::zeros((shown.len(), n_clusters));
     for (r, &l) in shown.iter().enumerate() {
         for (c, &oc) in order.iter().enumerate() {
             mat[[r, c]] = scores[[oc, l]];
@@ -238,9 +238,9 @@ fn prepare(sd: &SoData, max_labels: usize, normalize: bool) -> anyhow::Result<Sc
     }
 
     let (vmin, vmax, cmap) = if normalize {
-        (0.0, 1.0, viridis_colormap as fn(f64) -> RGBColor)
+        (0.0, 1.0, viridis_colormap as fn(f32) -> RGBColor)
     } else {
-        let mut a = 0.0f64;
+        let mut a = 0.0f32;
         for &v in mat.iter() {
             if v.is_finite() {
                 a = a.max(v.abs());
@@ -250,7 +250,7 @@ fn prepare(sd: &SoData, max_labels: usize, normalize: bool) -> anyhow::Result<Sc
         (
             -a,
             a,
-            crate::plot::spatial::stereo_colormap as fn(f64) -> RGBColor,
+            crate::plot::spatial::stereo_colormap as fn(f32) -> RGBColor,
         )
     };
 
@@ -273,8 +273,8 @@ const BAR_H: i32 = 16;
 struct Layout {
     x0: i32,
     y0: i32,
-    cell_w: f64,
-    cell_h: f64,
+    cell_w: f32,
+    cell_h: f32,
 
     row_label_x: i32,
     row_label_w: i32,
@@ -294,8 +294,8 @@ fn compute_layout(bw: i32, bh: i32, row_label_w: i32, n_cols: usize, n_rows: usi
     Layout {
         x0,
         y0,
-        cell_w: (x1 - x0) as f64 / n_cols.max(1) as f64,
-        cell_h: (y1 - y0) as f64 / n_rows.max(1) as f64,
+        cell_w: (x1 - x0) as f32 / n_cols.max(1) as f32,
+        cell_h: (y1 - y0) as f32 / n_rows.max(1) as f32,
         row_label_x: row_label_w,
         row_label_w,
         bar1_y0: 2,
@@ -310,8 +310,8 @@ fn draw_annotation_bar<DB: DrawingBackend>(
     y0: i32,
 ) -> Result<(), DrawingAreaErrorKind<DB::ErrorType>> {
     for (c, color) in colors.iter().enumerate() {
-        let cx0 = lay.x0 + (c as f64 * lay.cell_w).floor() as i32;
-        let cx1 = (lay.x0 + ((c + 1) as f64 * lay.cell_w).ceil() as i32).max(cx0);
+        let cx0 = lay.x0 + (c as f32 * lay.cell_w).floor() as i32;
+        let cx1 = (lay.x0 + ((c + 1) as f32 * lay.cell_w).ceil() as i32).max(cx0);
         area.draw(&Rectangle::new(
             [(cx0, y0), (cx1, y0 + BAR_H - 1)],
             color.filled(),
@@ -358,11 +358,11 @@ fn render_score_heatmap<DB: DrawingBackend>(
     let lay = compute_layout(bw, bh, row_label_w, n_cols, n_rows);
 
     for r in 0..n_rows {
-        let cy0 = lay.y0 + (r as f64 * lay.cell_h).floor() as i32;
-        let cy1 = (lay.y0 + ((r + 1) as f64 * lay.cell_h).ceil() as i32).max(cy0);
+        let cy0 = lay.y0 + (r as f32 * lay.cell_h).floor() as i32;
+        let cy1 = (lay.y0 + ((r + 1) as f32 * lay.cell_h).ceil() as i32).max(cy0);
         for c in 0..n_cols {
-            let cx0 = lay.x0 + (c as f64 * lay.cell_w).floor() as i32;
-            let cx1 = (lay.x0 + ((c + 1) as f64 * lay.cell_w).ceil() as i32).max(cx0);
+            let cx0 = lay.x0 + (c as f32 * lay.cell_w).floor() as i32;
+            let cx1 = (lay.x0 + ((c + 1) as f32 * lay.cell_w).ceil() as i32).max(cx0);
             let v = d.mat[[r, c]];
             let t = if d.vmax > d.vmin {
                 (v - d.vmin) / (d.vmax - d.vmin)
@@ -388,8 +388,8 @@ fn render_score_heatmap<DB: DrawingBackend>(
     let max_text_w = (lay.row_label_w - 8).max(12);
     let stride = ((13.0 / lay.cell_h).ceil() as usize).max(1);
     for (r, name) in d.label_names.iter().enumerate().step_by(stride) {
-        let cy0 = lay.y0 + (r as f64 * lay.cell_h).floor() as i32;
-        let cy1 = (lay.y0 + ((r + 1) as f64 * lay.cell_h).ceil() as i32 - 1).max(cy0);
+        let cy0 = lay.y0 + (r as f32 * lay.cell_h).floor() as i32;
+        let cy1 = (lay.y0 + ((r + 1) as f32 * lay.cell_h).ceil() as i32 - 1).max(cy0);
         let cy_mid = cy0 + (cy1 - cy0) / 2;
         let shown = fit_to_width(&body_area, name, &row_style, max_text_w);
         let w_px = text_w(&body_area, &shown, &row_style);
@@ -404,8 +404,8 @@ fn render_score_heatmap<DB: DrawingBackend>(
     let per_col = (26.0 / lay.cell_w).ceil() as usize;
     let cstride = per_col.max(1);
     for (c, name) in d.cluster_names.iter().enumerate().step_by(cstride) {
-        let cx0 = lay.x0 + (c as f64 * lay.cell_w).floor() as i32;
-        let cx1 = (lay.x0 + ((c + 1) as f64 * lay.cell_w).ceil() as i32 - 1).max(cx0);
+        let cx0 = lay.x0 + (c as f32 * lay.cell_w).floor() as i32;
+        let cx1 = (lay.x0 + ((c + 1) as f32 * lay.cell_w).ceil() as i32 - 1).max(cx0);
         let cx_mid = cx0 + (cx1 - cx0) / 2;
         let w_px = text_w(&body_area, name, &col_style);
         body_area.draw_text(name, &col_style, (cx_mid - w_px / 2, bh - 16))?;

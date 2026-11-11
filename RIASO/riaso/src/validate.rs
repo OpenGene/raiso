@@ -181,10 +181,10 @@ fn check_filter_cells(c: &Config, ck: &mut Checker) {
         return;
     }
     if let Some(v) = c.min_counts {
-        check_nonneg_f64(ck, "--min-counts", v, "the minimum total counts per cell");
+        check_nonneg_f32(ck, "--min-counts", v, "the minimum total counts per cell");
     }
     if let Some(v) = c.max_counts {
-        check_nonneg_f64(ck, "--max-counts", v, "the maximum total counts per cell");
+        check_nonneg_f32(ck, "--max-counts", v, "the maximum total counts per cell");
     }
     if let (Some(lo), Some(hi)) = (c.min_counts, c.max_counts) {
         if lo > hi {
@@ -267,10 +267,10 @@ fn check_filter_genes(c: &Config, ck: &mut Checker) {
         }
     }
     if let Some(v) = c.gene_min_counts {
-        check_nonneg_f64(ck, "--gene-min-counts", v, "the minimum total UMI per gene");
+        check_nonneg_f32(ck, "--gene-min-counts", v, "the minimum total UMI per gene");
     }
     if let Some(v) = c.gene_max_counts {
-        check_nonneg_f64(ck, "--gene-max-counts", v, "the maximum total UMI per gene");
+        check_nonneg_f32(ck, "--gene-max-counts", v, "the maximum total UMI per gene");
     }
     if let (Some(lo), Some(hi)) = (c.gene_min_counts, c.gene_max_counts) {
         if lo > hi {
@@ -282,7 +282,7 @@ fn check_filter_genes(c: &Config, ck: &mut Checker) {
         }
     }
     if let Some(v) = c.gene_mean_umi {
-        check_nonneg_f64(ck, "--gene-mean-umi", v, "the minimum mean UMI per gene");
+        check_nonneg_f32(ck, "--gene-mean-umi", v, "the minimum mean UMI per gene");
     }
     check_list_file(ck, "--gene-list", &c.gene_list);
 }
@@ -632,23 +632,23 @@ fn check_ora(c: &Config, ck: &mut Checker) {
     if !any_ora {
         return;
     }
-    check_unit_f64(
+    check_unit_f32(
         ck,
         "--gene-pvalue-cutoff",
         c.ora_gene_pvalue_cutoff,
         "the input gene p-value cutoff",
     );
-    check_nonneg_f64(
+    check_nonneg_f32(
         ck,
         "--gene-log2fc-cutoff",
         c.ora_gene_log2fc_cutoff,
         "the input gene log2fc cutoff",
     );
     if let Some(v) = c.ora_pvalue_cutoff {
-        check_unit_f64(ck, "--ora-pvalue-cutoff", v, "the term p-value cutoff");
+        check_unit_f32(ck, "--ora-pvalue-cutoff", v, "the term p-value cutoff");
     }
     if let Some(v) = c.ora_qvalue_cutoff {
-        check_unit_f64(ck, "--ora-qvalue-cutoff", v, "the term q-value cutoff");
+        check_unit_f32(ck, "--ora-qvalue-cutoff", v, "the term q-value cutoff");
     }
     if c.ora_min_gene_count == 0 {
         ck.err(
@@ -763,13 +763,13 @@ fn check_gsea(c: &Config, ck: &mut Checker) {
             ));
         }
     }
-    check_unit_f64(
+    check_unit_f32(
         ck,
         "--gsea-pvalue-cutoff",
         g.pvalue_cutoff,
         "the term p-value cutoff",
     );
-    check_unit_f64(
+    check_unit_f32(
         ck,
         "--gsea-qvalue-cutoff",
         g.qvalue_cutoff,
@@ -927,7 +927,7 @@ fn check_steps(c: &Config, ck: &mut Checker) {
     }
 }
 
-fn check_nonneg_f64(ck: &mut Checker, flag: &str, v: f64, what: &str) {
+fn check_nonneg_f32(ck: &mut Checker, flag: &str, v: f32, what: &str) {
     if !v.is_finite() {
         ck.err(
             format!("{flag} = {v}"),
@@ -943,7 +943,7 @@ fn check_nonneg_f64(ck: &mut Checker, flag: &str, v: f64, what: &str) {
     }
 }
 
-fn check_unit_f64(ck: &mut Checker, flag: &str, v: f64, what: &str) {
+fn check_unit_f32(ck: &mut Checker, flag: &str, v: f32, what: &str) {
     if !v.is_finite() || !(0.0..=1.0).contains(&v) {
         ck.err(
             format!("{flag} = {v}"),
@@ -1044,7 +1044,7 @@ pub fn validate_against_data(c: &Config, sd: &SoData) -> Result<()> {
                 "the retained cell count is not enough for downstream dimensionality reduction and clustering.",
                 "retained cells ≥ 3",
             );
-        } else if (cells_eff as f64) / (n_obs as f64) < 0.01 {
+        } else if (cells_eff as f32) / (n_obs as f32) < 0.01 {
             ck.warn("the current cell filtering parameters retain a very low fraction of cells (below 1%); downstream results may be unstable.");
         }
     }
@@ -1058,7 +1058,7 @@ pub fn validate_against_data(c: &Config, sd: &SoData) -> Result<()> {
                     "retained genes ≥ 1; check --min-cells / --max-cells / --gene-min-counts / --gene-max-counts / --gene-mean-umi against the actual data range",
                 );
             }
-        } else if (genes_eff as f64) / (n_vars as f64) < 0.01 {
+        } else if (genes_eff as f32) / (n_vars as f32) < 0.01 {
             ck.warn("the current gene filtering parameters retain a very low fraction of genes (below 1%); downstream HVG/PCA/marker may be unstable.");
         }
     }
@@ -1075,8 +1075,8 @@ fn check_cell_thresholds(
     list: Option<&[String]>,
     ck: &mut Checker,
 ) {
-    if let Some(vals) = col_f64(obs, "total_counts") {
-        let r = range_f64(&vals);
+    if let Some(vals) = col_f32(obs, "total_counts") {
+        let r = range_f32(&vals);
         if let (Some(v), Some((_, max))) = (c.min_counts, r) {
             if v > max {
                 ck.err(
@@ -1127,8 +1127,8 @@ fn check_cell_thresholds(
         }
     }
 
-    if let Some(vals) = col_f64(obs, "pct_counts_mt") {
-        let r = range_f64(&vals);
+    if let Some(vals) = col_f32(obs, "pct_counts_mt") {
+        let r = range_f32(&vals);
         if let (Some(v), Some((min, max))) = (c.pct_counts_mt, r) {
             if v < min {
                 ck.err(
@@ -1220,8 +1220,8 @@ fn check_gene_thresholds(
         }
     }
 
-    if let Some(vals) = col_f64(var, "n_counts") {
-        let r = range_f64(&vals);
+    if let Some(vals) = col_f32(var, "n_counts") {
+        let r = range_f32(&vals);
         if let (Some(v), Some((_, max))) = (c.gene_min_counts, r) {
             if v > max {
                 ck.err(
@@ -1246,8 +1246,8 @@ fn check_gene_thresholds(
         }
     }
 
-    if let Some(vals) = col_f64(var, "mean_umi") {
-        let r = range_f64(&vals);
+    if let Some(vals) = col_f32(var, "mean_umi") {
+        let r = range_f32(&vals);
         if let (Some(v), Some((min, max))) = (c.gene_mean_umi, r) {
             if v >= max {
                 ck.err(
@@ -1317,15 +1317,15 @@ fn check_gene_list(var: &DataFrame, n_vars: usize, c: &Config, list: &[String], 
 
 fn check_coordinate_thresholds(
     c: &Config,
-    pos: &ndarray::Array2<f64>,
+    pos: &ndarray::Array2<f32>,
     n_obs: usize,
     ck: &mut Checker,
 ) {
     let (mut x_min, mut x_max, mut y_min, mut y_max) = (
-        f64::INFINITY,
-        f64::NEG_INFINITY,
-        f64::INFINITY,
-        f64::NEG_INFINITY,
+        f32::INFINITY,
+        f32::NEG_INFINITY,
+        f32::INFINITY,
+        f32::NEG_INFINITY,
     );
     let mut any = false;
     for i in 0..n_obs {
@@ -1496,8 +1496,8 @@ fn check_downstream(c: &Config, cells_eff: usize, genes_eff: usize, ck: &mut Che
     }
 }
 
-fn col_f64(df: &DataFrame, name: &str) -> Option<Vec<Option<f64>>> {
-    let ca = df.column(name).ok()?.f64().ok()?;
+fn col_f32(df: &DataFrame, name: &str) -> Option<Vec<Option<f32>>> {
+    let ca = df.column(name).ok()?.f32().ok()?;
     Some(ca.into_iter().collect())
 }
 
@@ -1506,9 +1506,9 @@ fn col_i64(df: &DataFrame, name: &str) -> Option<Vec<Option<i64>>> {
     Some(ca.into_iter().collect())
 }
 
-fn range_f64(vals: &[Option<f64>]) -> Option<(f64, f64)> {
-    let mut min = f64::INFINITY;
-    let mut max = f64::NEG_INFINITY;
+fn range_f32(vals: &[Option<f32>]) -> Option<(f32, f32)> {
+    let mut min = f32::INFINITY;
+    let mut max = f32::NEG_INFINITY;
     let mut any = false;
     for v in vals.iter().flatten() {
         if v.is_finite() {
@@ -1566,7 +1566,7 @@ fn read_list(path: &Option<PathBuf>) -> Option<Vec<String>> {
     )
 }
 
-fn apply_f64(keep: &mut [bool], vals: &[Option<f64>], pred: impl Fn(f64) -> bool) {
+fn apply_f32(keep: &mut [bool], vals: &[Option<f32>], pred: impl Fn(f32) -> bool) {
     for (k, v) in keep.iter_mut().zip(vals) {
         if let Some(v) = v {
             *k &= pred(*v);
@@ -1584,12 +1584,12 @@ fn apply_i64(keep: &mut [bool], vals: &[Option<i64>], pred: impl Fn(i64) -> bool
 
 fn cell_keep(obs: &DataFrame, n_obs: usize, c: &Config, list: Option<&[String]>) -> Vec<bool> {
     let mut keep = vec![true; n_obs];
-    if let Some(vals) = col_f64(obs, "total_counts") {
+    if let Some(vals) = col_f32(obs, "total_counts") {
         if let Some(v) = c.min_counts {
-            apply_f64(&mut keep, &vals, |x| x >= v);
+            apply_f32(&mut keep, &vals, |x| x >= v);
         }
         if let Some(v) = c.max_counts {
-            apply_f64(&mut keep, &vals, |x| x <= v);
+            apply_f32(&mut keep, &vals, |x| x <= v);
         }
     }
     if let Some(vals) = col_i64(obs, "n_genes_by_counts") {
@@ -1600,9 +1600,9 @@ fn cell_keep(obs: &DataFrame, n_obs: usize, c: &Config, list: Option<&[String]>)
             apply_i64(&mut keep, &vals, |x| x <= v);
         }
     }
-    if let Some(vals) = col_f64(obs, "pct_counts_mt") {
+    if let Some(vals) = col_f32(obs, "pct_counts_mt") {
         if let Some(v) = c.pct_counts_mt {
-            apply_f64(&mut keep, &vals, |x| x <= v);
+            apply_f32(&mut keep, &vals, |x| x <= v);
         }
     }
     if let (Some(list), Some(names)) = (list, names_of(obs, "cell")) {
@@ -1631,17 +1631,17 @@ fn gene_keep(
             apply_i64(&mut keep, &vals, |x| x <= v);
         }
     }
-    if let Some(vals) = col_f64(var, "n_counts") {
+    if let Some(vals) = col_f32(var, "n_counts") {
         if let Some(v) = c.gene_min_counts {
-            apply_f64(&mut keep, &vals, |x| x >= v);
+            apply_f32(&mut keep, &vals, |x| x >= v);
         }
         if let Some(v) = c.gene_max_counts {
-            apply_f64(&mut keep, &vals, |x| x <= v);
+            apply_f32(&mut keep, &vals, |x| x <= v);
         }
     }
-    if let Some(vals) = col_f64(var, "mean_umi") {
+    if let Some(vals) = col_f32(var, "mean_umi") {
         if let Some(v) = c.gene_mean_umi {
-            apply_f64(&mut keep, &vals, |x| x > v);
+            apply_f32(&mut keep, &vals, |x| x > v);
         }
     }
     if let (Some(list), Some(names)) = (list, names_of(var, "gene")) {
@@ -1665,7 +1665,7 @@ fn gene_keep(
     keep
 }
 
-fn coordinate_keep(pos: &ndarray::Array2<f64>, n_obs: usize, c: &Config) -> Vec<bool> {
+fn coordinate_keep(pos: &ndarray::Array2<f32>, n_obs: usize, c: &Config) -> Vec<bool> {
     let mut keep = vec![true; n_obs];
     for (i, k) in keep.iter_mut().enumerate() {
         let x = pos[[i, 0]];

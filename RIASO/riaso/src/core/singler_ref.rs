@@ -3,14 +3,14 @@ use ndarray::Array2;
 
 #[derive(Debug, Clone)]
 pub struct SingleRRef {
-    ref_x: Array2<f64>,
+    ref_x: Array2<f32>,
     ref_genes: Vec<String>,
     ref_labels: Vec<String>,
 }
 
 impl SingleRRef {
     pub fn new(
-        ref_x: Array2<f64>,
+        ref_x: Array2<f32>,
         ref_genes: Vec<String>,
         ref_labels: Vec<String>,
     ) -> Result<Self> {
@@ -35,7 +35,7 @@ impl SingleRRef {
         })
     }
 
-    pub fn ref_x(&self) -> &Array2<f64> {
+    pub fn ref_x(&self) -> &Array2<f32> {
         &self.ref_x
     }
 

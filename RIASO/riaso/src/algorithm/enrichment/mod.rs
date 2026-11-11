@@ -4,7 +4,7 @@ pub mod ora;
 pub use gsea::{run_gsea, GseaParams, RankBy};
 pub use ora::{run_ora, OraParams};
 
-pub(crate) fn bh_adjust(ps: &[f64]) -> Vec<f64> {
+pub(crate) fn bh_adjust(ps: &[f32]) -> Vec<f32> {
     let m = ps.len();
     if m == 0 {
         return Vec::new();
@@ -15,10 +15,10 @@ pub(crate) fn bh_adjust(ps: &[f64]) -> Vec<f64> {
             .partial_cmp(&ps[b])
             .unwrap_or(std::cmp::Ordering::Equal)
     });
-    let mut padj_sorted: Vec<f64> = order
+    let mut padj_sorted: Vec<f32> = order
         .iter()
         .enumerate()
-        .map(|(rank, &j)| (ps[j] * (m as f64) / ((rank + 1) as f64)).min(1.0))
+        .map(|(rank, &j)| (ps[j] * (m as f32) / ((rank + 1) as f32)).min(1.0))
         .collect();
 
     for i in (1..m).rev() {
@@ -26,7 +26,7 @@ pub(crate) fn bh_adjust(ps: &[f64]) -> Vec<f64> {
             padj_sorted[i - 1] = padj_sorted[i];
         }
     }
-    let mut adj = vec![1.0f64; m];
+    let mut adj = vec![1.0f32; m];
     for (i, &j) in order.iter().enumerate() {
         adj[j] = padj_sorted[i];
     }

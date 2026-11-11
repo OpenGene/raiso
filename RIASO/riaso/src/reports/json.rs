@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 use serde_json::{json, Map, Value};
 
 use super::{file_name_of, label_counts, stats, Report};
-use crate::pipeline::{display_numbers, obs_f64, QC_METRICS};
+use crate::pipeline::{display_numbers, obs_f32, QC_METRICS};
 
 pub fn write(path: &Path, r: &Report<'_>) -> Result<()> {
     let mut root = Map::new();
@@ -36,7 +36,7 @@ pub fn write(path: &Path, r: &Report<'_>) -> Result<()> {
         );
     }
     if let Some(pca) = r.sd.result.pca.as_ref() {
-        let ratio: Vec<f64> = pca.explained_variance_ratio.iter().copied().collect();
+        let ratio: Vec<f32> = pca.explained_variance_ratio.iter().copied().collect();
         root.insert(
             "pca".to_string(),
             json!({
@@ -139,7 +139,6 @@ fn meta(r: &Report<'_>) -> Value {
         "sample": r.sample,
         "multi_sample": r.multi,
         "inputs": r.config.io.inputs.iter().map(|s| file_name_of(s)).collect::<Vec<_>>(),
-        // Keep only the last path component: never write the caller's absolute path into the report.
         "out_root": file_name_of(&r.config.io.out_root),
     })
 }
@@ -198,7 +197,6 @@ fn params(r: &Report<'_>) -> Value {
         "top_n": c.top_n,
         "random_state": c.random_state,
         "label_key": c.label_key,
-        // Same as inputs: keep only the file name, never the caller's absolute path.
         "references": c
             .references
             .iter()
@@ -216,7 +214,7 @@ fn qc(r: &Report<'_>) -> Value {
     m.insert("n_cells".to_string(), json!(r.sd.n_obs()));
     m.insert("n_genes".to_string(), json!(r.sd.n_vars()));
     for metric in QC_METRICS {
-        if let Ok(v) = obs_f64(r.sd, metric) {
+        if let Ok(v) = obs_f32(r.sd, metric) {
             let (med, avg) = stats(&v);
             m.insert(
                 metric.to_string(),
@@ -227,18 +225,18 @@ fn qc(r: &Report<'_>) -> Value {
     Value::Object(m)
 }
 
-fn min_of(v: &[f64]) -> f64 {
+fn min_of(v: &[f32]) -> f32 {
     v.iter()
         .copied()
         .filter(|x| x.is_finite())
-        .fold(f64::NAN, f64::min)
+        .fold(f32::NAN, f32::min)
 }
 
-fn max_of(v: &[f64]) -> f64 {
+fn max_of(v: &[f32]) -> f32 {
     v.iter()
         .copied()
         .filter(|x| x.is_finite())
-        .fold(f64::NAN, f64::max)
+        .fold(f32::NAN, f32::max)
 }
 
 fn enrichment(r: &Report<'_>, enr: &crate::core::EnrichmentResult) -> Value {

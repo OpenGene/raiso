@@ -42,17 +42,17 @@ pub(crate) const STEREO_30: [RGBColor; 30] = [
     RGBColor(0xD1, 0x59, 0x28),
 ];
 
-fn stereo_30_interp(t: f64) -> RGBColor {
+fn stereo_30_interp(t: f32) -> RGBColor {
     let t = t.clamp(0.0, 1.0);
     let last = STEREO_30.len() - 1;
-    let pos = t * last as f64;
+    let pos = t * last as f32;
     let i = (pos.floor() as usize).min(last);
     let j = (pos.ceil() as usize).min(last);
     if i == j {
         return STEREO_30[i];
     }
-    let f = pos - i as f64;
-    let lerp = |a: u8, b: u8| (a as f64 + (b as f64 - a as f64) * f).round() as u8;
+    let f = pos - i as f32;
+    let lerp = |a: u8, b: u8| (a as f32 + (b as f32 - a as f32) * f).round() as u8;
     RGBColor(
         lerp(STEREO_30[i].0, STEREO_30[j].0),
         lerp(STEREO_30[i].1, STEREO_30[j].1),
@@ -65,7 +65,7 @@ pub(crate) fn cluster_colors(n: usize) -> Vec<RGBColor> {
         STEREO_30[..n].to_vec()
     } else {
         (0..n)
-            .map(|i| stereo_30_interp(i as f64 / (n as f64 - 1.0)))
+            .map(|i| stereo_30_interp(i as f32 / (n as f32 - 1.0)))
             .collect()
     }
 }
@@ -98,7 +98,7 @@ pub(crate) fn extract_clusters(sd: &SoData, cluster_key: &str) -> anyhow::Result
     Ok(ca.into_no_null_iter().collect())
 }
 
-fn extract_umap(sd: &SoData, cluster_key: &str) -> anyhow::Result<(Vec<f64>, Vec<f64>, Vec<i64>)> {
+fn extract_umap(sd: &SoData, cluster_key: &str) -> anyhow::Result<(Vec<f32>, Vec<f32>, Vec<i64>)> {
     let umap = match &sd.result.umap {
         Some(u) => &u.embedding,
         None => {
@@ -134,7 +134,7 @@ pub fn plot_umap(
     title: Option<&str>,
     x_label: &str,
     y_label: &str,
-    dot_size: Option<f64>,
+    dot_size: Option<f32>,
     size: (u32, u32),
 ) -> anyhow::Result<()> {
     let (x, y, labels) = extract_umap(data, cluster_key)?;
@@ -160,7 +160,7 @@ pub fn plot_umap_png(
     title: Option<&str>,
     x_label: &str,
     y_label: &str,
-    dot_size: Option<f64>,
+    dot_size: Option<f32>,
     size: (u32, u32),
 ) -> anyhow::Result<Vec<u8>> {
     let (x, y, labels) = extract_umap(data, cluster_key)?;
@@ -189,13 +189,13 @@ pub fn plot_umap_png(
 #[allow(clippy::too_many_arguments)]
 fn render_umap<DB: DrawingBackend>(
     root: DrawingArea<DB, Shift>,
-    x: &[f64],
-    y: &[f64],
+    x: &[f32],
+    y: &[f32],
     labels: &[i64],
     title: Option<&str>,
     x_label: &str,
     y_label: &str,
-    dot_size: Option<f64>,
+    dot_size: Option<f32>,
 ) -> Result<(), DrawingAreaErrorKind<DB::ErrorType>> {
     root.fill(&WHITE)?;
     let root = match title {
@@ -235,16 +235,16 @@ fn render_umap<DB: DrawingBackend>(
     let avail_w = (w - legend_w).max(200);
 
     let ar = (x1 - x0) / (y1 - y0);
-    let plw_w = (avail_w - MARGIN * 2 - Y_LABEL).max(1) as f64;
-    let mut pw = avail_w as f64;
-    let mut ph = plw_w / ar + (MARGIN * 2 + X_LABEL) as f64;
-    if ph > h as f64 {
-        ph = h as f64;
-        let plh = (ph - (MARGIN * 2 + X_LABEL) as f64).max(1.0);
-        pw = plh * ar + (MARGIN * 2 + Y_LABEL) as f64;
+    let plw_w = (avail_w - MARGIN * 2 - Y_LABEL).max(1) as f32;
+    let mut pw = avail_w as f32;
+    let mut ph = plw_w / ar + (MARGIN * 2 + X_LABEL) as f32;
+    if ph > h as f32 {
+        ph = h as f32;
+        let plh = (ph - (MARGIN * 2 + X_LABEL) as f32).max(1.0);
+        pw = plh * ar + (MARGIN * 2 + Y_LABEL) as f32;
     }
-    let pw = (pw.max(200.0)).min(avail_w as f64) as i32;
-    let ph = (ph.max(200.0)).min(h as f64) as i32;
+    let pw = (pw.max(200.0)).min(avail_w as f32) as i32;
+    let ph = (ph.max(200.0)).min(h as f32) as i32;
 
     let (main_area, legend_area) = root.split_horizontally(avail_w.min(w));
     let (mw, mh) = main_area.dim_in_pixel();
@@ -272,14 +272,14 @@ fn render_umap<DB: DrawingBackend>(
 
     let (pw_px, ph_px) = chart.plotting_area().dim_in_pixel();
     let dot_size = dot_size.unwrap_or_else(|| {
-        let area = (pw_px as f64) * (ph_px as f64);
+        let area = (pw_px as f32) * (ph_px as f32);
         super::spatial::default_dot_size_px(x.len(), area)
     });
 
-    let hx = dot_size * 0.5 * (x1 - x0) / (pw_px as f64).max(1.0);
-    let hy = dot_size * 0.5 * (y1 - y0) / (ph_px as f64).max(1.0);
+    let hx = dot_size * 0.5 * (x1 - x0) / (pw_px as f32).max(1.0);
+    let hy = dot_size * 0.5 * (y1 - y0) / (ph_px as f32).max(1.0);
 
-    let pts: Vec<(f64, f64, RGBColor)> = x
+    let pts: Vec<(f32, f32, RGBColor)> = x
         .par_iter()
         .zip(y.par_iter())
         .zip(labels.par_iter())
@@ -300,7 +300,7 @@ fn render_umap<DB: DrawingBackend>(
 pub(crate) fn legend_width(w: i32, labels: &[String]) -> i32 {
     let max_chars = labels.iter().map(|l| l.chars().count()).max().unwrap_or(1);
     let want = 2 * (max_chars as i32 * 9 + 30) + 20;
-    let cap = (((w as f64) * 0.30) as i32).max(140);
+    let cap = (((w as f32) * 0.30) as i32).max(140);
     want.clamp(140, cap)
 }
 

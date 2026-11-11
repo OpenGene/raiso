@@ -82,14 +82,14 @@ struct Cli {
         help = "min total counts per cell",
         help_heading = "Data preprocessing options"
     )]
-    min_counts: f64,
+    min_counts: f32,
 
     #[arg(
         long = "max-counts",
         help = "max total counts per cell",
         help_heading = "Data preprocessing options"
     )]
-    max_counts: Option<f64>,
+    max_counts: Option<f32>,
 
     #[arg(
         long = "min-genes",
@@ -112,7 +112,7 @@ struct Cli {
         help = "max mitochondrial percentage",
         help_heading = "Data preprocessing options"
     )]
-    pct_counts_mt: f64,
+    pct_counts_mt: f32,
 
     #[arg(
         long = "cell-list",
@@ -147,21 +147,21 @@ struct Cli {
         help = "min total UMI of a gene",
         help_heading = "Data preprocessing options"
     )]
-    gene_min_counts: Option<f64>,
+    gene_min_counts: Option<f32>,
 
     #[arg(
         long = "gene-max-counts",
         help = "max total UMI of a gene",
         help_heading = "Data preprocessing options"
     )]
-    gene_max_counts: Option<f64>,
+    gene_max_counts: Option<f32>,
 
     #[arg(
         long = "gene-mean-umi",
         help = "min mean UMI of a gene",
         help_heading = "Data preprocessing options"
     )]
-    gene_mean_umi: Option<f64>,
+    gene_mean_umi: Option<f32>,
 
     #[arg(
         long = "gene-list",
@@ -185,25 +185,25 @@ struct Cli {
         help = "X lower bound (closed interval, float)",
         help_heading = "Data preprocessing options"
     )]
-    min_x: Option<f64>,
+    min_x: Option<f32>,
     #[arg(
         long = "max-x",
         help = "X upper bound (closed interval, float)",
         help_heading = "Data preprocessing options"
     )]
-    max_x: Option<f64>,
+    max_x: Option<f32>,
     #[arg(
         long = "min-y",
         help = "Y lower bound (closed interval, float)",
         help_heading = "Data preprocessing options"
     )]
-    min_y: Option<f64>,
+    min_y: Option<f32>,
     #[arg(
         long = "max-y",
         help = "Y upper bound (closed interval, float)",
         help_heading = "Data preprocessing options"
     )]
-    max_y: Option<f64>,
+    max_y: Option<f32>,
 
     #[arg(short = 'n', long = "normalize-total", action = ArgAction::Set, num_args = 0..=1, default_missing_value = "true", default_value_t = true, help = "normalize total counts (CP10K by default)", help_heading = "Data preprocessing options")]
     normalize_total: bool,
@@ -214,7 +214,7 @@ struct Cli {
         help = "target total count after normalization",
         help_heading = "Data preprocessing options"
     )]
-    target_sum: f64,
+    target_sum: f32,
 
     #[arg(short = 'l', long = "log1p", action = ArgAction::Set, num_args = 0..=1, default_missing_value = "true", default_value_t = true, help = "apply ln(1+x)", help_heading = "Data preprocessing options")]
     log1p: bool,
@@ -230,7 +230,7 @@ struct Cli {
         help = "clip scaled values to [-max-value, max-value]",
         help_heading = "Data preprocessing options"
     )]
-    max_value: Option<f64>,
+    max_value: Option<f32>,
 
     #[arg(
         long = "n-top-genes",
@@ -277,21 +277,21 @@ struct Cli {
         help = "cluster soft-assignment width",
         help_heading = "Clustering options"
     )]
-    sigma: f64,
+    sigma: f32,
 
     #[arg(
         long = "theta",
         help = "batch diversity penalty",
         help_heading = "Clustering options"
     )]
-    theta: Option<f64>,
+    theta: Option<f32>,
 
     #[arg(
         long = "lamb",
         help = "cluster diversity penalty",
         help_heading = "Clustering options"
     )]
-    lamb: Option<f64>,
+    lamb: Option<f32>,
 
     #[arg(
         long = "tau",
@@ -299,7 +299,7 @@ struct Cli {
         help = "assignment matrix power",
         help_heading = "Clustering options"
     )]
-    tau: f64,
+    tau: f32,
 
     #[arg(
         long = "block-size",
@@ -307,7 +307,7 @@ struct Cli {
         help = "fraction of cells per iteration",
         help_heading = "Clustering options"
     )]
-    block_size: f64,
+    block_size: f32,
 
     #[arg(
         long = "max-iter-harmony",
@@ -331,7 +331,7 @@ struct Cli {
         help = "kmeans convergence",
         help_heading = "Clustering options"
     )]
-    epsilon_cluster: f64,
+    epsilon_cluster: f32,
 
     #[arg(
         long = "epsilon-harmony",
@@ -339,7 +339,7 @@ struct Cli {
         help = "outer convergence",
         help_heading = "Clustering options"
     )]
-    epsilon_harmony: f64,
+    epsilon_harmony: f32,
 
     #[arg(
         long = "nclust",
@@ -383,7 +383,7 @@ struct Cli {
         help = "min distance in low-dim space",
         help_heading = "Clustering options"
     )]
-    min_dist: f64,
+    min_dist: f32,
 
     #[arg(
         long = "spread",
@@ -391,7 +391,7 @@ struct Cli {
         help = "embedding scale",
         help_heading = "Clustering options"
     )]
-    spread: f64,
+    spread: f32,
 
     #[arg(short = 'c', long = "clustering", default_value = "leiden", value_parser = ["leiden", "louvain"], help = "clustering algorithm: leiden|louvain", help_heading = "Clustering options")]
     clustering: String,
@@ -402,7 +402,7 @@ struct Cli {
         help = "clustering resolution",
         help_heading = "Clustering options"
     )]
-    resolution: f64,
+    resolution: f32,
 
     #[arg(short = 'm', long = "marker-genes", action = ArgAction::Set, num_args = 0..=1, default_missing_value = "true", default_value_t = true, help = "find marker genes", help_heading = "Clustering options")]
     marker_genes: bool,
@@ -440,7 +440,7 @@ struct Cli {
         help = "score quantile for coarse scoring",
         help_heading = "Cell annotation options"
     )]
-    quantile: f64,
+    quantile: f32,
 
     #[arg(
         long = "fine-tune-threshold",
@@ -448,7 +448,7 @@ struct Cli {
         help = "absolute score-gap threshold for fine tuning",
         help_heading = "Cell annotation options"
     )]
-    fine_tune_threshold: f64,
+    fine_tune_threshold: f32,
 
     #[arg(
         long = "fine-tune-times",
@@ -524,7 +524,7 @@ struct Cli {
         help = "input-gene pvalue cutoff",
         help_heading = "Gene enrichment options (ORA: GO/KEGG/Reactome)"
     )]
-    gene_pvalue_cutoff: f64,
+    gene_pvalue_cutoff: f32,
 
     #[arg(
         long = "gene-log2fc-cutoff",
@@ -532,21 +532,21 @@ struct Cli {
         help = "input-gene log2fc cutoff",
         help_heading = "Gene enrichment options (ORA: GO/KEGG/Reactome)"
     )]
-    gene_log2fc_cutoff: f64,
+    gene_log2fc_cutoff: f32,
 
     #[arg(
         long = "ora-pvalue-cutoff",
         help = "term pvalue cutoff; when given, overrides all three DBs, otherwise the default is per-DB (GO/KEGG 0.05, Reactome 1.0)",
         help_heading = "Gene enrichment options (ORA: GO/KEGG/Reactome)"
     )]
-    ora_pvalue_cutoff: Option<f64>,
+    ora_pvalue_cutoff: Option<f32>,
 
     #[arg(
         long = "ora-qvalue-cutoff",
         help = "term qvalue cutoff; when given, overrides all three DBs, otherwise the default is per-DB (GO/KEGG 0.2, Reactome 1.0)",
         help_heading = "Gene enrichment options (ORA: GO/KEGG/Reactome)"
     )]
-    ora_qvalue_cutoff: Option<f64>,
+    ora_qvalue_cutoff: Option<f32>,
 
     #[arg(
         long = "min-gene-count",
@@ -584,7 +584,7 @@ struct Cli {
         help = "weight exponent p",
         help_heading = "Gene enrichment options (GSEA)"
     )]
-    gsea_param: f64,
+    gsea_param: f32,
 
     #[arg(
         long = "gsea-min-gene-count",
@@ -624,7 +624,7 @@ struct Cli {
         help = "term pvalue cutoff",
         help_heading = "Gene enrichment options (GSEA)"
     )]
-    gsea_pvalue_cutoff: f64,
+    gsea_pvalue_cutoff: f32,
 
     #[arg(
         long = "gsea-qvalue-cutoff",
@@ -632,7 +632,7 @@ struct Cli {
         help = "term qvalue cutoff",
         help_heading = "Gene enrichment options (GSEA)"
     )]
-    gsea_qvalue_cutoff: f64,
+    gsea_qvalue_cutoff: f32,
 
     #[arg(
         long = "gsea-top-n-terms",

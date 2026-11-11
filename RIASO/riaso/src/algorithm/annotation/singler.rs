@@ -9,9 +9,9 @@ use crate::parallel::{csr_to_dense, SendPtr};
 
 #[derive(Debug, Clone)]
 pub struct SingleRParams {
-    pub quantile: f64,
+    pub quantile: f32,
 
-    pub fine_tune_threshold: f64,
+    pub fine_tune_threshold: f32,
 
     pub fine_tune_times: usize,
 }
@@ -28,7 +28,7 @@ impl Default for SingleRParams {
 
 pub fn singler(
     reference: &SingleRRef,
-    test_x: &Array2<f64>,
+    test_x: &Array2<f32>,
     test_genes: &[String],
     params: &SingleRParams,
 ) -> Result<AnnotationResult> {
@@ -119,9 +119,9 @@ pub fn singler(
 }
 
 fn aggregate_by_cluster(
-    test_x: &Array2<f64>,
+    test_x: &Array2<f32>,
     cluster_labels: &[i64],
-) -> Result<(Array2<f64>, Vec<i64>, Vec<usize>)> {
+) -> Result<(Array2<f32>, Vec<i64>, Vec<usize>)> {
     let n_test = test_x.nrows();
     if cluster_labels.len() != n_test {
         bail!(
@@ -149,7 +149,7 @@ fn aggregate_by_cluster(
         members[r].push(t);
     }
 
-    let mut buf = vec![0.0f64; n_clusters * g];
+    let mut buf = vec![0.0f32; n_clusters * g];
     let ptr = SendPtr(buf.as_mut_ptr());
     (0..n_clusters).into_par_iter().for_each(|r| {
         let row = unsafe { std::slice::from_raw_parts_mut(ptr.add(r * g), g) };
@@ -166,7 +166,7 @@ fn aggregate_by_cluster(
 
 pub fn singler_cluster(
     reference: &SingleRRef,
-    test_x: &Array2<f64>,
+    test_x: &Array2<f32>,
     test_genes: &[String],
     cluster_labels: &[i64],
     params: &SingleRParams,
@@ -191,10 +191,10 @@ pub fn singler_cluster(
     })
 }
 
-fn densify(exp: &ExpMatrix) -> Array2<f64> {
+fn densify(exp: &ExpMatrix) -> Array2<f32> {
     match exp {
-        ExpMatrix::Dense(m) => m.mapv(|v| v as f64),
-        ExpMatrix::Sparse(csr) => csr_to_dense(&crate::parallel::csr_f32_to_f64(csr)),
+        ExpMatrix::Dense(m) => m.mapv(|v| v),
+        ExpMatrix::Sparse(csr) => csr_to_dense(&crate::parallel::csr_f32_to_f32(csr)),
     }
 }
 
@@ -223,7 +223,7 @@ pub fn run_singler(
     }
 }
 
-fn rankdata1d(a: &[f64]) -> Vec<f32> {
+fn rankdata1d(a: &[f32]) -> Vec<f32> {
     let n = a.len();
     if n == 0 {
         return Vec::new();
@@ -249,12 +249,12 @@ fn rankdata1d(a: &[f64]) -> Vec<f32> {
     ranks
 }
 
-fn rank_rows(mat: &Array2<f64>) -> Array2<f32> {
+fn rank_rows(mat: &Array2<f32>) -> Array2<f32> {
     let (nr, nc) = mat.dim();
     let mut out = Array2::<f32>::zeros((nr, nc));
     let ptr = SendPtr(out.as_mut_ptr());
     (0..nr).into_par_iter().for_each(|r| {
-        let mut row = vec![0.0f64; nc];
+        let mut row = vec![0.0f32; nc];
         for c in 0..nc {
             row[c] = mat[[r, c]];
         }
@@ -277,19 +277,19 @@ fn normalize_rows_inplace(ranked: &mut Array2<f32>) {
         ranked.is_standard_layout(),
         "normalize_rows_inplace requires a row-major contiguous layout"
     );
-    let mean = (g as f64 + 1.0) / 2.0;
+    let mean = (g as f32 + 1.0) / 2.0;
     let ptr = SendPtr(ranked.as_mut_ptr());
     (0..n).into_par_iter().for_each(|i| {
         let row = unsafe { std::slice::from_raw_parts_mut(ptr.add(i * g), g) };
 
-        let mut ss = 0.0f64;
+        let mut ss = 0.0f32;
         for v in row.iter_mut() {
-            let d = *v as f64 - mean;
-            *v = d as f32;
+            let d = *v - mean;
+            *v = d;
             ss += d * d;
         }
         if ss > 0.0 {
-            let inv = (1.0 / ss.sqrt()) as f32;
+            let inv = 1.0 / ss.sqrt();
             for v in row.iter_mut() {
                 *v *= inv;
             }
@@ -335,10 +335,10 @@ fn corr_spearman(ranked_a: &Array2<f32>, ranked_b: &Array2<f32>) -> Array2<f32> 
     corr_from_norm(&a, &b)
 }
 
-fn percentile_linear(a: &[f32], q: f64) -> f64 {
+fn percentile_linear(a: &[f32], q: f32) -> f32 {
     let n = a.len();
     if n == 0 {
-        return f64::NAN;
+        return f32::NAN;
     }
     let mut s = a.to_vec();
     s.sort_by(|x, y| match (x.is_nan(), y.is_nan()) {
@@ -347,28 +347,28 @@ fn percentile_linear(a: &[f32], q: f64) -> f64 {
         (false, true) => std::cmp::Ordering::Less,
         (false, false) => x.partial_cmp(y).unwrap(),
     });
-    let idx = (n as f64 - 1.0) * q / 100.0;
+    let idx = (n as f32 - 1.0) * q / 100.0;
     let lower = idx.floor() as usize;
     let upper = idx.ceil() as usize;
     if lower == upper {
-        s[lower] as f64
+        s[lower]
     } else {
-        let w_upper = idx - lower as f64;
-        let w_lower = upper as f64 - idx;
-        let vl = s[lower] as f64;
-        let vu = s[upper] as f64;
+        let w_upper = idx - lower as f32;
+        let w_lower = upper as f32 - idx;
+        let vl = s[lower];
+        let vu = s[upper];
         if vl.is_nan() || vu.is_nan() {
-            f64::NAN
+            f32::NAN
         } else {
             vl * w_lower + vu * w_upper
         }
     }
 }
 
-fn median_sorted(sorted: &[f64]) -> f64 {
+fn median_sorted(sorted: &[f32]) -> f32 {
     let n = sorted.len();
     if n == 0 {
-        return f64::NAN;
+        return f32::NAN;
     }
     if n % 2 == 1 {
         sorted[n / 2]
@@ -377,31 +377,31 @@ fn median_sorted(sorted: &[f64]) -> f64 {
     }
 }
 
-fn median_unsorted(vals: &[f64]) -> f64 {
+fn median_unsorted(vals: &[f32]) -> f32 {
     let mut v = vals.to_vec();
     v.sort_by(|a, b| a.partial_cmp(b).unwrap());
     median_sorted(&v)
 }
 
-fn population_std(a: &[f64]) -> f64 {
+fn population_std(a: &[f32]) -> f32 {
     let n = a.len();
     if n == 0 {
-        return f64::NAN;
+        return f32::NAN;
     }
-    let mean = a.iter().sum::<f64>() / n as f64;
-    let var = a.iter().map(|x| (x - mean) * (x - mean)).sum::<f64>() / n as f64;
+    let mean = a.iter().sum::<f32>() / n as f32;
+    let var = a.iter().map(|x| (x - mean) * (x - mean)).sum::<f32>() / n as f32;
     var.sqrt()
 }
 
 fn round_de_n(n: usize) -> usize {
-    (500.0f64 * (2.0f64 / 3.0f64).powf((n as f64).log2())).round() as usize
+    (500.0f32 * (2.0f32 / 3.0f32).powf((n as f32).log2())).round() as usize
 }
 
 const TRAINED_KEEP: usize = 500;
 
-fn keep_top_trained(pairs: &mut Vec<(usize, f64)>) {
+fn keep_top_trained(pairs: &mut Vec<(usize, f32)>) {
     let cmp =
-        |a: &(usize, f64), b: &(usize, f64)| b.1.partial_cmp(&a.1).unwrap().then(b.0.cmp(&a.0));
+        |a: &(usize, f32), b: &(usize, f32)| b.1.partial_cmp(&a.1).unwrap().then(b.0.cmp(&a.0));
     if pairs.len() > TRAINED_KEEP {
         pairs.select_nth_unstable_by(TRAINED_KEEP - 1, cmp);
         pairs.truncate(TRAINED_KEEP);
@@ -412,7 +412,7 @@ fn keep_top_trained(pairs: &mut Vec<(usize, f64)>) {
 }
 
 #[allow(clippy::if_same_then_else)]
-fn round6(x: f64) -> f64 {
+fn round6(x: f32) -> f32 {
     let scale = 1e6;
     let y = x * scale;
     let floor = y.floor();
@@ -428,31 +428,31 @@ fn round6(x: f64) -> f64 {
     }
 }
 
-fn select_cols(x: &Array2<f64>, cols: &[usize]) -> Array2<f64> {
+fn select_cols(x: &Array2<f32>, cols: &[usize]) -> Array2<f32> {
     x.select(Axis(1), cols).to_owned()
 }
 
-fn select_rows_cols(x: &Array2<f64>, rows: &[usize], cols: &[usize]) -> Array2<f64> {
+fn select_rows_cols(x: &Array2<f32>, rows: &[usize], cols: &[usize]) -> Array2<f32> {
     x.select(Axis(0), rows).select(Axis(1), cols).to_owned()
 }
 
 fn train_ref(
-    ref_interact: &Array2<f64>,
+    ref_interact: &Array2<f32>,
     group_cells: &[Vec<usize>],
     interact_names: &[String],
     n_labels: usize,
     de_n: usize,
-) -> (Vec<Vec<Vec<(usize, f64)>>>, Vec<usize>) {
+) -> (Vec<Vec<Vec<(usize, f32)>>>, Vec<usize>) {
     let g = ref_interact.ncols();
 
     let max_group = group_cells.iter().map(|c| c.len()).max().unwrap_or(0);
-    let mut median_exp = vec![0.0f64; g * n_labels];
+    let mut median_exp = vec![0.0f32; g * n_labels];
     {
         let ptr = SendPtr(median_exp.as_mut_ptr());
         (0..g)
             .into_par_iter()
             .map_init(
-                || vec![0.0f64; max_group],
+                || vec![0.0f32; max_group],
                 |buf, gg| {
                     let dst =
                         unsafe { std::slice::from_raw_parts_mut(ptr.add(gg * n_labels), n_labels) };
@@ -475,10 +475,10 @@ fn train_ref(
         .flat_map(|i| (0..n_labels).map(move |j| (i, j)))
         .filter(|&(i, j)| i != j)
         .collect();
-    let computed: Vec<(usize, usize, Vec<(usize, f64)>)> = pair_keys
+    let computed: Vec<(usize, usize, Vec<(usize, f32)>)> = pair_keys
         .par_iter()
         .map(|&(i, j)| {
-            let mut pairs: Vec<(usize, f64)> = (0..g)
+            let mut pairs: Vec<(usize, f32)> = (0..g)
                 .map(|gg| (gg, round6(med_at(gg, i) - med_at(gg, j))))
                 .collect();
             keep_top_trained(&mut pairs);
@@ -502,12 +502,12 @@ fn train_ref(
 }
 
 fn score_test(
-    test_interact: &Array2<f64>,
-    ref_interact: &Array2<f64>,
+    test_interact: &Array2<f32>,
+    ref_interact: &Array2<f32>,
     group_cells: &[Vec<usize>],
     common: &[usize],
-    quantile: f64,
-) -> (Array2<f64>, Vec<usize>) {
+    quantile: f32,
+) -> (Array2<f32>, Vec<usize>) {
     let n_test = test_interact.nrows();
     let n_labels = group_cells.len();
     let test_mat = select_cols(test_interact, common);
@@ -515,7 +515,7 @@ fn score_test(
 
     normalize_rows_inplace(&mut ranked_ref);
 
-    let score_cols: Vec<Vec<f64>> = (0..n_labels)
+    let score_cols: Vec<Vec<f32>> = (0..n_labels)
         .into_par_iter()
         .map_init(Vec::<f32>::new, |buf, l| {
             let ref_sub = select_rows_cols(ref_interact, &group_cells[l], common);
@@ -536,7 +536,7 @@ fn score_test(
         })
         .collect();
 
-    let mut scores = Array2::<f64>::zeros((n_test, n_labels));
+    let mut scores = Array2::<f32>::zeros((n_test, n_labels));
     for (l, col) in score_cols.into_iter().enumerate() {
         for t in 0..n_test {
             scores[[t, l]] = col[t];
@@ -546,7 +546,7 @@ fn score_test(
     let mut first = vec![0usize; n_test];
     for t in 0..n_test {
         let mut best = 0usize;
-        let mut bestv = f64::NEG_INFINITY;
+        let mut bestv = f32::NEG_INFINITY;
         for l in 0..n_labels {
             let v = scores[[t, l]];
             if v > bestv {
@@ -560,12 +560,12 @@ fn score_test(
 }
 
 fn fine_tune(
-    test_interact: &Array2<f64>,
-    ref_interact: &Array2<f64>,
+    test_interact: &Array2<f32>,
+    ref_interact: &Array2<f32>,
     group_cells: &[Vec<usize>],
     interact_names: &[String],
-    trained: &[Vec<Vec<(usize, f64)>>],
-    scores: &Array2<f64>,
+    trained: &[Vec<Vec<(usize, f32)>>],
+    scores: &Array2<f32>,
     params: &SingleRParams,
 ) -> Vec<usize> {
     let n_test = test_interact.nrows();
@@ -573,17 +573,17 @@ fn fine_tune(
     (0..n_test)
         .into_par_iter()
         .map(|t| {
-            let test_cell: Vec<f64> = test_interact.row(t).to_vec();
+            let test_cell: Vec<f32> = test_interact.row(t).to_vec();
             let rowmax = (0..n_labels)
                 .map(|l| scores[[t, l]])
-                .fold(f64::NEG_INFINITY, f64::max);
+                .fold(f32::NEG_INFINITY, f32::max);
             let thr = rowmax - params.fine_tune_threshold;
             let mut candidates: Vec<usize> = (0..n_labels)
                 .filter(|&l| scores[[t, l]] >= thr && scores[[t, l]] != 0.0)
                 .collect();
             if candidates.is_empty() {
                 let mut best = 0usize;
-                let mut bestv = f64::NEG_INFINITY;
+                let mut bestv = f32::NEG_INFINITY;
                 for l in 0..n_labels {
                     let v = scores[[t, l]];
                     if v > bestv {
@@ -607,12 +607,12 @@ fn fine_tune(
 }
 
 fn fine_tune_parallel(
-    test_cell: &[f64],
+    test_cell: &[f32],
     candidates: &[usize],
-    ref_interact: &Array2<f64>,
+    ref_interact: &Array2<f32>,
     group_cells: &[Vec<usize>],
     interact_names: &[String],
-    trained: &[Vec<Vec<(usize, f64)>>],
+    trained: &[Vec<Vec<(usize, f32)>>],
     params: &SingleRParams,
 ) -> usize {
     let mut labels = candidates.to_vec();
@@ -650,11 +650,11 @@ fn fine_tune_parallel(
 
 fn fine_tune_one_time(
     top_labels: &[usize],
-    test_cell: &[f64],
-    ref_interact: &Array2<f64>,
+    test_cell: &[f32],
+    ref_interact: &Array2<f32>,
     group_cells: &[Vec<usize>],
     interact_names: &[String],
-    trained: &[Vec<Vec<(usize, f64)>>],
+    trained: &[Vec<Vec<(usize, f32)>>],
     params: &SingleRParams,
     try_num: Option<usize>,
 ) -> Vec<usize> {
@@ -688,7 +688,7 @@ fn fine_tune_one_time(
         return vec![top_labels[0]];
     }
 
-    let test_filtered: Vec<f64> = gene_set.iter().map(|&g| test_cell[g]).collect();
+    let test_filtered: Vec<f32> = gene_set.iter().map(|&g| test_cell[g]).collect();
     if population_std(&test_filtered) <= 0.0 {
         return vec![top_labels[0]];
     }
@@ -697,7 +697,7 @@ fn fine_tune_one_time(
             .expect("ranked_test shape"),
     );
 
-    let mut res: Vec<(usize, f64)> = Vec::new();
+    let mut res: Vec<(usize, f32)> = Vec::new();
     for &p in top_labels {
         let cells = &group_cells[p];
         if cells.is_empty() {
@@ -713,10 +713,10 @@ fn fine_tune_one_time(
         return vec![top_labels[0]];
     }
 
-    let min_v = res.iter().map(|&(_, v)| v).fold(f64::INFINITY, f64::min);
-    let median_v = median_unsorted(&res.iter().map(|&(_, v)| v).collect::<Vec<f64>>());
+    let min_v = res.iter().map(|&(_, v)| v).fold(f32::INFINITY, f32::min);
+    let median_v = median_unsorted(&res.iter().map(|&(_, v)| v).collect::<Vec<f32>>());
     let mid = (min_v + median_v) / 2.0;
-    let mut kept: Vec<(usize, f64)> = res.into_iter().filter(|&(_, v)| v > mid).collect();
+    let mut kept: Vec<(usize, f32)> = res.into_iter().filter(|&(_, v)| v > mid).collect();
     if kept.is_empty() {
         return vec![top_labels[0]];
     }
@@ -724,7 +724,7 @@ fn fine_tune_one_time(
     let max_v = kept
         .iter()
         .map(|&(_, v)| v)
-        .fold(f64::NEG_INFINITY, f64::max);
+        .fold(f32::NEG_INFINITY, f32::max);
     let thr = max_v - params.fine_tune_threshold;
     kept.retain(|&(_, v)| v >= thr);
     if kept.is_empty() {

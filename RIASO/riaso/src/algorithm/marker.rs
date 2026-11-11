@@ -34,14 +34,14 @@ impl Default for MarkerParams {
     }
 }
 
-fn log_gamma(x: f64) -> f64 {
-    const COF: [f64; 6] = [
-        76.18009172947146,
-        -86.50532032941677,
-        24.01409824083091,
-        -1.231739572450155,
-        0.1208650973866179e-2,
-        -0.5395239384953e-5,
+fn log_gamma(x: f32) -> f32 {
+    const COF: [f32; 6] = [
+        76.180_09,
+        -86.505_32,
+        24.014_1,
+        -1.231_739_5,
+        1.208_651e-3,
+        -5.395_239_4e-6,
     ];
     let x0 = x;
     let mut tmp = x + 5.5;
@@ -52,13 +52,13 @@ fn log_gamma(x: f64) -> f64 {
         y += 1.0;
         ser += c / y;
     }
-    -tmp + (2.5066282746310005 * ser / x0).ln()
+    -tmp + (2.506_628_3 * ser / x0).ln()
 }
 
-fn betacf(a: f64, b: f64, x: f64) -> f64 {
+fn betacf(a: f32, b: f32, x: f32) -> f32 {
     const MAXIT: i32 = 200;
-    const EPS: f64 = 3.0e-14;
-    const FPMIN: f64 = 1.0e-300;
+    const EPS: f32 = 3.0e-14;
+    const FPMIN: f32 = 1.0e-300;
     let qab = a + b;
     let qap = a + 1.0;
     let qam = a - 1.0;
@@ -70,7 +70,7 @@ fn betacf(a: f64, b: f64, x: f64) -> f64 {
     d = 1.0 / d;
     let mut h = d;
     for m in 1..=MAXIT {
-        let m = m as f64;
+        let m = m as f32;
         let m2 = 2.0 * m;
 
         let mut aa = m * (b - m) * x / ((qam + m2) * (a + m2));
@@ -104,7 +104,7 @@ fn betacf(a: f64, b: f64, x: f64) -> f64 {
     h
 }
 
-fn regularized_beta(a: f64, b: f64, x: f64) -> f64 {
+fn regularized_beta(a: f32, b: f32, x: f32) -> f32 {
     if x <= 0.0 {
         return 0.0;
     }
@@ -120,42 +120,42 @@ fn regularized_beta(a: f64, b: f64, x: f64) -> f64 {
     }
 }
 
-fn t_two_sided_p(df: f64, t: f64) -> f64 {
+fn t_two_sided_p(df: f32, t: f32) -> f32 {
     if df.is_nan() || t.is_nan() {
-        return f64::NAN;
+        return f32::NAN;
     }
     let x = df / (df + t * t);
     let p = regularized_beta(df * 0.5, 0.5, x);
 
     if p == 0.0 {
-        f64::MIN_POSITIVE
+        f32::MIN_POSITIVE
     } else {
         p
     }
 }
 
-fn welch_t(ma: f64, va: f64, na: f64, mb: f64, vb: f64, nb: f64) -> (f64, f64) {
+fn welch_t(ma: f32, va: f32, na: f32, mb: f32, vb: f32, nb: f32) -> (f32, f32) {
     if na < 2.0 || nb < 2.0 {
-        return (f64::NAN, f64::NAN);
+        return (f32::NAN, f32::NAN);
     }
     let se_sq = va / na + vb / nb;
     if se_sq <= 0.0 || se_sq.is_nan() {
-        return (f64::NAN, f64::NAN);
+        return (f32::NAN, f32::NAN);
     }
     let t = (ma - mb) / se_sq.sqrt();
     let num = se_sq * se_sq;
     let den = (va / na).powi(2) / (na - 1.0) + (vb / nb).powi(2) / (nb - 1.0);
-    let df = if den == 0.0 { f64::NAN } else { num / den };
+    let df = if den == 0.0 { f32::NAN } else { num / den };
     (t, df)
 }
 
 struct ClusterAcc {
     n_g: usize,
     n_r: usize,
-    sum_g: Vec<f64>,
-    sum_r: Vec<f64>,
-    sq_g: Vec<f64>,
-    sq_r: Vec<f64>,
+    sum_g: Vec<f32>,
+    sum_r: Vec<f32>,
+    sq_g: Vec<f32>,
+    sq_r: Vec<f32>,
     cnt_pos_g: Vec<usize>,
     cnt_pos_r: Vec<usize>,
 }
@@ -180,7 +180,7 @@ fn accumulate_cluster_dense(x: &Array2<f32>, labels: &[i64], cid: i64) -> Cluste
             acc.n_g += 1;
             let row = &x.row(c);
             for (g, &v) in row.iter().enumerate() {
-                acc.sum_g[g] += v as f64;
+                acc.sum_g[g] += v;
                 if v > 0.0 {
                     acc.cnt_pos_g[g] += 1;
                 }
@@ -189,7 +189,7 @@ fn accumulate_cluster_dense(x: &Array2<f32>, labels: &[i64], cid: i64) -> Cluste
             acc.n_r += 1;
             let row = &x.row(c);
             for (g, &v) in row.iter().enumerate() {
-                acc.sum_r[g] += v as f64;
+                acc.sum_r[g] += v;
                 if v > 0.0 {
                     acc.cnt_pos_r[g] += 1;
                 }
@@ -197,21 +197,21 @@ fn accumulate_cluster_dense(x: &Array2<f32>, labels: &[i64], cid: i64) -> Cluste
         }
     }
 
-    let mean_g: Vec<f64> = acc.sum_g.iter().map(|&s| s / acc.n_g as f64).collect();
-    let mean_r: Vec<f64> = acc.sum_r.iter().map(|&s| s / acc.n_r as f64).collect();
+    let mean_g: Vec<f32> = acc.sum_g.iter().map(|&s| s / acc.n_g as f32).collect();
+    let mean_r: Vec<f32> = acc.sum_r.iter().map(|&s| s / acc.n_r as f32).collect();
 
     #[allow(clippy::needless_range_loop)]
     for c in 0..n_cells {
         if labels[c] == cid {
             let row = &x.row(c);
             for (g, &v) in row.iter().enumerate() {
-                let d = v as f64 - mean_g[g];
+                let d = v - mean_g[g];
                 acc.sq_g[g] += d * d;
             }
         } else {
             let row = &x.row(c);
             for (g, &v) in row.iter().enumerate() {
-                let d = v as f64 - mean_r[g];
+                let d = v - mean_r[g];
                 acc.sq_r[g] += d * d;
             }
         }
@@ -251,49 +251,49 @@ fn accumulate_cluster_sparse(csr: &CsrMatrix<f32>, labels: &[i64], cid: i64) -> 
             let g = cols[idx];
             let v = vals[idx];
             if labels[c] == cid {
-                acc.sum_g[g] += v as f64;
+                acc.sum_g[g] += v;
                 acc.cnt_pos_g[g] += 1;
             } else {
-                acc.sum_r[g] += v as f64;
+                acc.sum_r[g] += v;
                 acc.cnt_pos_r[g] += 1;
             }
         }
     }
 
-    let mean_g: Vec<f64> = acc.sum_g.iter().map(|&s| s / acc.n_g as f64).collect();
-    let mean_r: Vec<f64> = acc.sum_r.iter().map(|&s| s / acc.n_r as f64).collect();
+    let mean_g: Vec<f32> = acc.sum_g.iter().map(|&s| s / acc.n_g as f32).collect();
+    let mean_r: Vec<f32> = acc.sum_r.iter().map(|&s| s / acc.n_r as f32).collect();
 
     for c in 0..n_cells {
         for idx in offsets[c]..offsets[c + 1] {
             let g = cols[idx];
             let v = vals[idx];
             if labels[c] == cid {
-                let d = v as f64 - mean_g[g];
+                let d = v - mean_g[g];
                 acc.sq_g[g] += d * d;
             } else {
-                let d = v as f64 - mean_r[g];
+                let d = v - mean_r[g];
                 acc.sq_r[g] += d * d;
             }
         }
     }
 
     for g in 0..n_genes {
-        acc.sq_g[g] += (acc.n_g - acc.cnt_pos_g[g]) as f64 * mean_g[g] * mean_g[g];
-        acc.sq_r[g] += (acc.n_r - acc.cnt_pos_r[g]) as f64 * mean_r[g] * mean_r[g];
+        acc.sq_g[g] += (acc.n_g - acc.cnt_pos_g[g]) as f32 * mean_g[g] * mean_g[g];
+        acc.sq_r[g] += (acc.n_r - acc.cnt_pos_r[g]) as f32 * mean_r[g] * mean_r[g];
     }
 
     acc
 }
 
-fn cal_log2fc(mg: f64, mr: f64) -> f64 {
+fn cal_log2fc(mg: f32, mr: f32) -> f32 {
     let g = mg.exp_m1() + 1e-9;
     let r = mr.exp_m1() + 1e-9;
     (g / r).log2()
 }
 
-fn bh_correct(p: &[f64]) -> Vec<f64> {
+fn bh_correct(p: &[f32]) -> Vec<f32> {
     let n = p.len();
-    let mut out = vec![f64::NAN; n];
+    let mut out = vec![f32::NAN; n];
     let finite: Vec<usize> = p
         .iter()
         .enumerate()
@@ -306,13 +306,13 @@ fn bh_correct(p: &[f64]) -> Vec<f64> {
     let m = finite.len();
     let mut order: Vec<usize> = (0..m).collect();
     order.sort_by(|&i, &j| p[finite[i]].partial_cmp(&p[finite[j]]).unwrap());
-    let mut adj = vec![0.0f64; m];
+    let mut adj = vec![0.0f32; m];
     for (rank, &oi) in order.iter().enumerate() {
         let rank = rank + 1;
-        adj[oi] = (p[finite[oi]] * m as f64 / rank as f64).min(1.0);
+        adj[oi] = (p[finite[oi]] * m as f32 / rank as f32).min(1.0);
     }
 
-    let mut run = f64::INFINITY;
+    let mut run = f32::INFINITY;
     for i in (0..m).rev() {
         run = run.min(adj[order[i]]);
         adj[order[i]] = run;
@@ -323,12 +323,12 @@ fn bh_correct(p: &[f64]) -> Vec<f64> {
     out
 }
 
-fn bonferroni_correct(p: &[f64]) -> Vec<f64> {
-    let n = p.len() as f64;
+fn bonferroni_correct(p: &[f32]) -> Vec<f32> {
+    let n = p.len() as f32;
     p.iter()
         .map(|&v| {
             if v.is_nan() {
-                f64::NAN
+                f32::NAN
             } else {
                 (v * n).min(1.0)
             }
@@ -363,15 +363,15 @@ pub fn marker_genes(x: &ExpMatrix, labels: &[i64], params: &MarkerParams) -> Res
                 ExpMatrix::Dense(arr) => accumulate_cluster_dense(arr, labels, cid),
                 ExpMatrix::Sparse(csr) => accumulate_cluster_sparse(csr, labels, cid),
             };
-            let ng = acc.n_g as f64;
-            let nr = acc.n_r as f64;
+            let ng = acc.n_g as f32;
+            let nr = acc.n_r as f32;
 
-            let mut t_stats = vec![0.0f64; n_genes];
-            let mut pvalues = vec![0.0f64; n_genes];
-            let mut log2fcs = vec![0.0f64; n_genes];
-            let mut pctg = vec![0.0f64; n_genes];
-            let mut pctr = vec![0.0f64; n_genes];
-            let mut mean_counts = vec![0.0f64; n_genes];
+            let mut t_stats = vec![0.0f32; n_genes];
+            let mut pvalues = vec![0.0f32; n_genes];
+            let mut log2fcs = vec![0.0f32; n_genes];
+            let mut pctg = vec![0.0f32; n_genes];
+            let mut pctr = vec![0.0f32; n_genes];
+            let mut mean_counts = vec![0.0f32; n_genes];
 
             for g in 0..n_genes {
                 let mg = acc.sum_g[g] / ng;
@@ -379,25 +379,25 @@ pub fn marker_genes(x: &ExpMatrix, labels: &[i64], params: &MarkerParams) -> Res
                 let vg = if acc.n_g >= 2 {
                     acc.sq_g[g] / (ng - 1.0)
                 } else {
-                    f64::NAN
+                    f32::NAN
                 };
                 let vr = if acc.n_r >= 2 {
                     acc.sq_r[g] / (nr - 1.0)
                 } else {
-                    f64::NAN
+                    f32::NAN
                 };
                 let (t, df) = welch_t(mg, vg, ng, mr, vr, nr);
                 t_stats[g] = t;
                 pvalues[g] = t_two_sided_p(df, t);
                 log2fcs[g] = cal_log2fc(mg, mr);
-                pctg[g] = acc.cnt_pos_g[g] as f64 / ng;
-                pctr[g] = acc.cnt_pos_r[g] as f64 / nr;
+                pctg[g] = acc.cnt_pos_g[g] as f32 / ng;
+                pctr[g] = acc.cnt_pos_r[g] as f32 / nr;
                 mean_counts[g] = mg;
             }
 
-            let scores: Vec<f64> = pvalues
+            let scores: Vec<f32> = pvalues
                 .iter()
-                .map(|&p| if p.is_nan() { f64::NAN } else { -p.log10() })
+                .map(|&p| if p.is_nan() { f32::NAN } else { -p.log10() })
                 .collect();
             let pvalues_adj = match params.corr_method {
                 CorrMethod::BH => bh_correct(&pvalues),
@@ -413,7 +413,7 @@ pub fn marker_genes(x: &ExpMatrix, labels: &[i64], params: &MarkerParams) -> Res
             });
             let n_keep = params.n_genes.unwrap_or(n_genes).min(n_genes);
             let keep: Vec<usize> = order[..n_keep].to_vec();
-            let pick = |v: &Vec<f64>| keep.iter().map(|&i| v[i]).collect::<Vec<f64>>();
+            let pick = |v: &Vec<f32>| keep.iter().map(|&i| v[i]).collect::<Vec<f32>>();
 
             ClusterMarkerResult {
                 cluster_id: cid,
@@ -444,16 +444,18 @@ pub(crate) fn marker_input(data: &SoData) -> Option<Cow<'_, ExpMatrix>> {
 }
 
 pub fn run_marker(data: &mut SoData, labels: &[i64], params: &MarkerParams) {
-    data.result.marker = None;
+    crate::parallel::with_thread_cap("marker", || {
+        data.result.marker = None;
 
-    let x = match marker_input(data) {
-        Some(x) => x,
-        None => return,
-    };
+        let x = match marker_input(data) {
+            Some(x) => x,
+            None => return,
+        };
 
-    if let Ok(res) = marker_genes(x.as_ref(), labels, params) {
-        data.result.marker = Some(res);
-    }
+        if let Ok(res) = marker_genes(x.as_ref(), labels, params) {
+            data.result.marker = Some(res);
+        }
+    });
 }
 
 pub fn write_marker_csv(
@@ -464,13 +466,13 @@ pub fn write_marker_csv(
 ) -> Result<()> {
     let mut col_cluster: Vec<i64> = Vec::new();
     let mut col_gene: Vec<String> = Vec::new();
-    let mut col_scores: Vec<f64> = Vec::new();
-    let mut col_p: Vec<f64> = Vec::new();
-    let mut col_padj: Vec<f64> = Vec::new();
-    let mut col_log2fc: Vec<f64> = Vec::new();
-    let mut col_pct: Vec<f64> = Vec::new();
-    let mut col_pct_rest: Vec<f64> = Vec::new();
-    let mut col_mean: Vec<f64> = Vec::new();
+    let mut col_scores: Vec<f32> = Vec::new();
+    let mut col_p: Vec<f32> = Vec::new();
+    let mut col_padj: Vec<f32> = Vec::new();
+    let mut col_log2fc: Vec<f32> = Vec::new();
+    let mut col_pct: Vec<f32> = Vec::new();
+    let mut col_pct_rest: Vec<f32> = Vec::new();
+    let mut col_mean: Vec<f32> = Vec::new();
 
     for c in &result.clusters {
         let n = top

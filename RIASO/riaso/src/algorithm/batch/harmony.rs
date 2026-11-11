@@ -11,23 +11,23 @@ use crate::parallel::SendPtr;
 pub struct HarmonyParams {
     pub nclust: Option<usize>,
 
-    pub sigma: f64,
+    pub sigma: f32,
 
-    pub theta: Option<f64>,
+    pub theta: Option<f32>,
 
-    pub lamb: Option<f64>,
+    pub lamb: Option<f32>,
 
-    pub tau: f64,
+    pub tau: f32,
 
-    pub block_size: f64,
+    pub block_size: f32,
 
     pub max_iter_harmony: usize,
 
     pub max_iter_kmeans: usize,
 
-    pub epsilon_cluster: f64,
+    pub epsilon_cluster: f32,
 
-    pub epsilon_harmony: f64,
+    pub epsilon_harmony: f32,
 
     pub random_state: u64,
 }
@@ -73,7 +73,7 @@ pub fn run_harmony(data: &mut SoData, params: &HarmonyParams) {
 }
 
 pub fn harmonize_matrix(
-    z: &Array2<f64>,
+    z: &Array2<f32>,
     batch_labels: &[usize],
     params: &HarmonyParams,
 ) -> Result<BatchCorrectionResult> {
@@ -103,7 +103,7 @@ fn extract_batch_labels(obs: &polars::prelude::DataFrame) -> Result<Vec<usize>> 
     Ok(labels)
 }
 
-fn numpy_round(x: f64) -> f64 {
+fn numpy_round(x: f32) -> f32 {
     let floor = x.floor();
     let frac = x - floor;
     if frac < 0.5 {
@@ -118,79 +118,79 @@ fn numpy_round(x: f64) -> f64 {
 }
 
 struct Harmony {
-    z_corr: Array2<f64>,
-    z_orig: Array2<f64>,
-    z_cos: Array2<f64>,
-    phi: Array2<f64>,
-    phi_moe: Array2<f64>,
-    pr_b: Vec<f64>,
+    z_corr: Array2<f32>,
+    z_orig: Array2<f32>,
+    z_cos: Array2<f32>,
+    phi: Array2<f32>,
+    phi_moe: Array2<f32>,
+    pr_b: Vec<f32>,
     b: usize,
     d: usize,
     n: usize,
     k: usize,
-    sigma: Vec<f64>,
-    theta: Vec<f64>,
-    lamb: Array2<f64>,
-    block_size: f64,
+    sigma: Vec<f32>,
+    theta: Vec<f32>,
+    lamb: Array2<f32>,
+    block_size: f32,
     max_iter_harmony: usize,
     max_iter_kmeans: usize,
-    epsilon_kmeans: f64,
-    epsilon_harmony: f64,
+    epsilon_kmeans: f32,
+    epsilon_harmony: f32,
     window_size: usize,
 
-    scale_dist: Array2<f64>,
-    dist_mat: Array2<f64>,
-    o: Array2<f64>,
-    e: Array2<f64>,
-    w: Array2<f64>,
-    phi_rk: Array2<f64>,
-    y: Array2<f64>,
-    r: Array2<f64>,
+    scale_dist: Array2<f32>,
+    dist_mat: Array2<f32>,
+    o: Array2<f32>,
+    e: Array2<f32>,
+    w: Array2<f32>,
+    phi_rk: Array2<f32>,
+    y: Array2<f32>,
+    r: Array2<f32>,
     batch_of_cell: Vec<usize>,
-    objective_harmony: Vec<f64>,
-    objective_kmeans: Vec<f64>,
+    objective_harmony: Vec<f32>,
+    objective_kmeans: Vec<f32>,
     rng: Mt19937,
 }
 
 impl Harmony {
-    fn new(z: &Array2<f64>, batch_labels: &[usize], params: &HarmonyParams) -> Result<Self> {
+    fn new(z: &Array2<f32>, batch_labels: &[usize], params: &HarmonyParams) -> Result<Self> {
         let d = z.nrows();
         let n = z.ncols();
         let n_batches = batch_labels.iter().max().map(|&x| x + 1).unwrap_or(1);
         let k = match params.nclust {
             Some(k) => k,
-            None => (numpy_round(n as f64 / 30.0) as usize).min(100),
+            None => (numpy_round(n as f32 / 30.0) as usize).min(100),
         };
         let k = k.max(1);
 
-        let mut phi = Array2::<f64>::zeros((n_batches, n));
+        let mut phi = Array2::<f32>::zeros((n_batches, n));
         for (i, &b) in batch_labels.iter().enumerate() {
             if b < n_batches {
                 phi[[b, i]] = 1.0;
             }
         }
 
-        let n_b: Vec<f64> = (0..n_batches).map(|b| phi.row(b).sum()).collect();
-        let pr_b: Vec<f64> = n_b.iter().map(|&nb| nb / n as f64).collect();
+        let n_b: Vec<f32> = (0..n_batches).map(|b| phi.row(b).sum()).collect();
+        let pr_b: Vec<f32> = n_b.iter().map(|&nb| nb / n as f32).collect();
 
-        let sigma: Vec<f64> = vec![params.sigma; k];
+        let sigma: Vec<f32> = vec![params.sigma; k];
 
         let base_theta = params.theta.unwrap_or(1.0);
-        let mut theta: Vec<f64> = vec![base_theta; n_batches];
+        let mut theta: Vec<f32> = vec![base_theta; n_batches];
         if params.tau > 0.0 {
             for b in 0..n_batches {
-                let factor = 1.0 - (-((n_b[b] / (k as f64 * params.tau)).powi(2))).exp();
+                let factor = 1.0 - (-((n_b[b] / (k as f32 * params.tau)).powi(2))).exp();
                 theta[b] *= factor;
             }
         }
 
         let base_lamb = params.lamb.unwrap_or(1.0);
-        let mut lamb = Array2::<f64>::zeros((n_batches + 1, n_batches + 1));
+        let mut lamb = Array2::<f32>::zeros((n_batches + 1, n_batches + 1));
         for i in 1..=n_batches {
             lamb[[i, i]] = base_lamb;
         }
 
-        let mut phi_moe = Array2::<f64>::zeros((n_batches + 1, n));
+        let mut phi_moe = Array2::<f32>::zeros((n_batches + 1, n));
         phi_moe.row_mut(0).fill(1.0);
         for b in 0..n_batches {
             for j in 0..n {
@@ -266,7 +266,7 @@ impl Harmony {
         self.r = -&self.dist_mat;
         self.r = divide_rows(&self.r, &self.sigma);
         self.r = sub_col_max(&self.r);
-        self.r = self.r.mapv(f64::exp);
+        self.r = self.r.mapv(f32::exp);
         self.r = normalize_cols_l1(&self.r);
 
         let r_row_sum = row_sums(&self.r);
@@ -289,14 +289,14 @@ impl Harmony {
         let o = self.o.as_slice().unwrap();
         let e = self.e.as_slice().unwrap();
 
-        let mut z = vec![0.0f64; k * b];
+        let mut z = vec![0.0f32; k * b];
         for kk in 0..k {
             for bb in 0..b {
                 z[kk * b + bb] = ((o[kk * b + bb] + 1.0) / (e[kk * b + bb] + 1.0)).ln();
             }
         }
 
-        let (kmeans_error, entropy, cross_entropy): (f64, f64, f64) = (0..k)
+        let (kmeans_error, entropy, cross_entropy): (f32, f32, f32) = (0..k)
             .into_par_iter()
             .map(|kk| {
                 let s = sigma[kk];
@@ -363,7 +363,7 @@ impl Harmony {
         self.scale_dist = -&self.dist_mat;
         self.scale_dist = divide_rows(&self.scale_dist, &self.sigma);
         self.scale_dist = sub_col_max(&self.scale_dist);
-        self.scale_dist = self.scale_dist.mapv(f64::exp);
+        self.scale_dist = self.scale_dist.mapv(f32::exp);
 
         let mut update_order: Vec<usize> = (0..self.n).collect();
         self.rng.shuffle(&mut update_order);
@@ -491,13 +491,13 @@ impl Harmony {
     }
 }
 
-fn gemm_atb(a: &Array2<f64>, b: &Array2<f64>) -> Array2<f64> {
+fn gemm_atb(a: &Array2<f32>, b: &Array2<f32>) -> Array2<f32> {
     let (p, m) = (a.nrows(), a.ncols());
     let n = b.ncols();
     debug_assert_eq!(p, b.nrows());
     let a_s = a.as_slice().unwrap();
     let b_s = b.as_slice().unwrap();
-    let mut c = Array2::<f64>::zeros((m, n));
+    let mut c = Array2::<f32>::zeros((m, n));
     let c_slice = c.as_slice_mut().unwrap();
     c_slice.par_chunks_mut(n).enumerate().for_each(|(i, crow)| {
         for q in 0..p {
@@ -511,13 +511,13 @@ fn gemm_atb(a: &Array2<f64>, b: &Array2<f64>) -> Array2<f64> {
     c
 }
 
-fn gemm_abt(a: &Array2<f64>, b: &Array2<f64>) -> Array2<f64> {
+fn gemm_abt(a: &Array2<f32>, b: &Array2<f32>) -> Array2<f32> {
     let (m, p) = (a.nrows(), a.ncols());
     let n = b.nrows();
     debug_assert_eq!(p, b.ncols());
     let a_s = a.as_slice().unwrap();
     let b_s = b.as_slice().unwrap();
-    let mut c = Array2::<f64>::zeros((m, n));
+    let mut c = Array2::<f32>::zeros((m, n));
     let c_slice = c.as_slice_mut().unwrap();
     let ptr = SendPtr(c_slice.as_mut_ptr());
     (0..m).into_par_iter().for_each(move |i| {
@@ -536,7 +536,7 @@ fn gemm_abt(a: &Array2<f64>, b: &Array2<f64>) -> Array2<f64> {
     c
 }
 
-fn cluster_dist(y: &Array2<f64>, z_cos: &Array2<f64>) -> Array2<f64> {
+fn cluster_dist(y: &Array2<f32>, z_cos: &Array2<f32>) -> Array2<f32> {
     let mut dm = gemm_atb(y, z_cos);
     dm.as_slice_mut()
         .unwrap()
@@ -545,7 +545,7 @@ fn cluster_dist(y: &Array2<f64>, z_cos: &Array2<f64>) -> Array2<f64> {
     dm
 }
 
-fn l2_norm_cols(x: &Array2<f64>) -> Array2<f64> {
+fn l2_norm_cols(x: &Array2<f32>) -> Array2<f32> {
     let (rows, cols) = (x.nrows(), x.ncols());
     let mut out = x.clone();
     let xs = x.as_slice().unwrap();
@@ -567,7 +567,7 @@ fn l2_norm_cols(x: &Array2<f64>) -> Array2<f64> {
     out
 }
 
-fn normalize_cols_l1(x: &Array2<f64>) -> Array2<f64> {
+fn normalize_cols_l1(x: &Array2<f32>) -> Array2<f32> {
     let (rows, cols) = (x.nrows(), x.ncols());
     let mut out = x.clone();
     let xs = x.as_slice().unwrap();
@@ -587,13 +587,13 @@ fn normalize_cols_l1(x: &Array2<f64>) -> Array2<f64> {
     out
 }
 
-fn col_wise_max(x: &Array2<f64>) -> Vec<f64> {
+fn col_wise_max(x: &Array2<f32>) -> Vec<f32> {
     let (rows, cols) = (x.nrows(), x.ncols());
     let xs = x.as_slice().unwrap();
     (0..cols)
         .into_par_iter()
         .map(|j| {
-            let mut m = f64::NEG_INFINITY;
+            let mut m = f32::NEG_INFINITY;
             for i in 0..rows {
                 let v = xs[i * cols + j];
                 if v > m {
@@ -605,7 +605,7 @@ fn col_wise_max(x: &Array2<f64>) -> Vec<f64> {
         .collect()
 }
 
-fn divide_rows(x: &Array2<f64>, sigma: &[f64]) -> Array2<f64> {
+fn divide_rows(x: &Array2<f32>, sigma: &[f32]) -> Array2<f32> {
     let mut out = x.clone();
     let cols = x.ncols();
     let out_slice = out.as_slice_mut().unwrap();
@@ -620,7 +620,7 @@ fn divide_rows(x: &Array2<f64>, sigma: &[f64]) -> Array2<f64> {
     out
 }
 
-fn sub_col_max(x: &Array2<f64>) -> Array2<f64> {
+fn sub_col_max(x: &Array2<f32>) -> Array2<f32> {
     let (rows, cols) = (x.nrows(), x.ncols());
     let mut out = x.clone();
     let xs = x.as_slice().unwrap();
@@ -637,7 +637,7 @@ fn sub_col_max(x: &Array2<f64>) -> Array2<f64> {
     out
 }
 
-fn row_sums(x: &Array2<f64>) -> Vec<f64> {
+fn row_sums(x: &Array2<f32>) -> Vec<f32> {
     let cols = x.ncols();
     let xs = x.as_slice().unwrap();
     (0..x.nrows())
@@ -646,8 +646,8 @@ fn row_sums(x: &Array2<f64>) -> Vec<f64> {
         .collect()
 }
 
-fn outer(a: &[f64], b: &[f64]) -> Array2<f64> {
-    let mut out = Array2::<f64>::zeros((a.len(), b.len()));
+fn outer(a: &[f32], b: &[f32]) -> Array2<f32> {
+    let mut out = Array2::<f32>::zeros((a.len(), b.len()));
     for i in 0..a.len() {
         for j in 0..b.len() {
             out[[i, j]] = a[i] * b[j];
@@ -674,7 +674,7 @@ fn array_split(arr: &[usize], n: usize) -> Vec<&[usize]> {
     out
 }
 
-fn kmeans2(data: &Array2<f64>, k: usize, rng: &mut Mt19937) -> Array2<f64> {
+fn kmeans2(data: &Array2<f32>, k: usize, rng: &mut Mt19937) -> Array2<f32> {
     let mut code_book = kpp(data, k, rng);
     for _ in 0..10 {
         let label = vq(data, &code_book);
@@ -691,17 +691,17 @@ fn kmeans2(data: &Array2<f64>, k: usize, rng: &mut Mt19937) -> Array2<f64> {
     code_book
 }
 
-fn kpp(data: &Array2<f64>, k: usize, rng: &mut Mt19937) -> Array2<f64> {
+fn kpp(data: &Array2<f32>, k: usize, rng: &mut Mt19937) -> Array2<f32> {
     let n = data.nrows();
     let dims = data.ncols();
-    let mut init = Array2::<f64>::zeros((k, dims));
+    let mut init = Array2::<f32>::zeros((k, dims));
     for i in 0..k {
         if i == 0 {
             let idx = rng.bounded_below(0, n as u64) as usize;
             init.row_mut(i).assign(&data.row(idx));
         } else {
             let d2 = min_sqeuclidean(&init.slice(s![..i, ..]), data);
-            let total: f64 = d2.iter().sum();
+            let total: f32 = d2.iter().sum();
             let mut cumprobs = Vec::with_capacity(n);
             let mut acc = 0.0;
             for &d in &d2 {
@@ -716,14 +716,14 @@ fn kpp(data: &Array2<f64>, k: usize, rng: &mut Mt19937) -> Array2<f64> {
     init
 }
 
-fn min_sqeuclidean(init: &ndarray::ArrayView2<f64>, data: &Array2<f64>) -> Vec<f64> {
+fn min_sqeuclidean(init: &ndarray::ArrayView2<f32>, data: &Array2<f32>) -> Vec<f32> {
     let (i, d) = (init.nrows(), init.ncols());
     let n = data.nrows();
     let data_s = data.as_slice().unwrap();
     (0..n)
         .into_par_iter()
         .map(|j| {
-            let mut out = f64::INFINITY;
+            let mut out = f32::INFINITY;
             for c in 0..i {
                 let mut s = 0.0;
                 for dim in 0..d {
@@ -739,14 +739,14 @@ fn min_sqeuclidean(init: &ndarray::ArrayView2<f64>, data: &Array2<f64>) -> Vec<f
         .collect()
 }
 
-fn searchsorted(cumprobs: &[f64], r: f64) -> usize {
+fn searchsorted(cumprobs: &[f32], r: f32) -> usize {
     cumprobs
         .iter()
         .position(|&c| c >= r)
         .unwrap_or(cumprobs.len())
 }
 
-fn vq(obs: &Array2<f64>, code_book: &Array2<f64>) -> Vec<usize> {
+fn vq(obs: &Array2<f32>, code_book: &Array2<f32>) -> Vec<usize> {
     let m = obs.nrows();
     let k = code_book.nrows();
     let d = obs.ncols();
@@ -755,7 +755,7 @@ fn vq(obs: &Array2<f64>, code_book: &Array2<f64>) -> Vec<usize> {
     (0..m)
         .into_par_iter()
         .map(|i| {
-            let mut min_dist = f64::INFINITY;
+            let mut min_dist = f32::INFINITY;
             let mut best = 0usize;
             for j in 0..k {
                 let mut s = 0.0;
@@ -773,12 +773,12 @@ fn vq(obs: &Array2<f64>, code_book: &Array2<f64>) -> Vec<usize> {
         .collect()
 }
 
-fn update_cluster_means(obs: &Array2<f64>, code: &[usize], k: usize) -> (Array2<f64>, Vec<bool>) {
+fn update_cluster_means(obs: &Array2<f32>, code: &[usize], k: usize) -> (Array2<f32>, Vec<bool>) {
     let m = obs.nrows();
     let d = obs.ncols();
     let obs_s = obs.as_slice().unwrap();
     let n_threads = rayon::current_num_threads();
-    let mut tbuf: Vec<Vec<f64>> = (0..n_threads).map(|_| vec![0.0f64; k * d]).collect();
+    let mut tbuf: Vec<Vec<f32>> = (0..n_threads).map(|_| vec![0.0f32; k * d]).collect();
     let mut tcounts: Vec<Vec<usize>> = (0..n_threads).map(|_| vec![0usize; k]).collect();
 
     let rows_per_thread = m.div_ceil(n_threads);
@@ -797,7 +797,7 @@ fn update_cluster_means(obs: &Array2<f64>, code: &[usize], k: usize) -> (Array2<
             }
         });
 
-    let mut new_code_book = Array2::<f64>::zeros((k, d));
+    let mut new_code_book = Array2::<f32>::zeros((k, d));
     let mut counts = vec![0usize; k];
     for t in 0..n_threads {
         for j in 0..k {
@@ -811,7 +811,7 @@ fn update_cluster_means(obs: &Array2<f64>, code: &[usize], k: usize) -> (Array2<
     for j in 0..k {
         if counts[j] > 0 {
             for dim in 0..d {
-                new_code_book[[j, dim]] /= counts[j] as f64;
+                new_code_book[[j, dim]] /= counts[j] as f32;
             }
         }
     }
