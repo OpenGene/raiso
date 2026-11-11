@@ -42,8 +42,8 @@ for name in ("libblas", "libcblas", "liblapack"):
         raise SystemExit(f"Expected one installed {name} record: {records}")
     record = json.loads(records[0].read_text())
     print(f"{name}: {record['version']} {record['build']}", flush=True)
-    if not record["build"].endswith("_newaccelerate"):
-        raise SystemExit(f"{name} must use newaccelerate; recreate/update environment-macos.yml")
+    if not record["build"].endswith("_openblas"):
+        raise SystemExit(f"{name} must use the OpenBLAS variant; recreate/update environment-macos.yml")
 for name in ("libblas.3.dylib", "liblapack.3.dylib", "libarpack.2.dylib"):
     library = prefix / "lib" / name
     print(f"{library} -> {library.resolve()}", flush=True)
