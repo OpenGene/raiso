@@ -1,6 +1,6 @@
 [package]
 name = "riaso"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 rust-version = "1.93"
 description = "Spatial omics data analysis framework"
@@ -20,10 +20,9 @@ path = "src/main.rs"
 # Toolchain pinned to rustc/cargo 1.95.0 (rust-version 1.93 is the lowest real MSRV among the dependencies).
 # To upgrade a dependency: bump the version here by hand and run `cargo update -p <crate>`, keeping builds reproducible.
 ndarray = "=0.17.2"
+num-traits = "=0.2.19"
 nalgebra = "=0.34.2"
 nalgebra-sparse = "=0.11.0"
-# Numeric trait for internal/output double-precision generics (Float: f32/f64 arithmetic + precision conversion)
-num-traits = "=0.2.19"
 polars = { version = "=0.45.1", features = ["lazy", "csv"] }
 serde = { version = "=1.0.228", features = ["derive"] }
 serde_json = "=1.0.150"
