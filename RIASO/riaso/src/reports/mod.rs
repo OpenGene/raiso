@@ -32,12 +32,12 @@ pub struct Report<'a> {
 pub struct MarkerRow {
     pub cluster: i64,
     pub gene: String,
-    pub scores: f64,
-    pub log2fc: f64,
-    pub pvalues: f64,
-    pub pvalues_adj: f64,
-    pub pct: f64,
-    pub pct_rest: f64,
+    pub scores: f32,
+    pub log2fc: f32,
+    pub pvalues: f32,
+    pub pvalues_adj: f32,
+    pub pct: f32,
+    pub pct_rest: f32,
 }
 
 pub fn html_escape(s: &str) -> String {
@@ -55,10 +55,10 @@ pub fn html_escape(s: &str) -> String {
     out
 }
 
-pub fn median(v: &[f64]) -> f64 {
-    let mut xs: Vec<f64> = v.iter().copied().filter(|x| x.is_finite()).collect();
+pub fn median(v: &[f32]) -> f32 {
+    let mut xs: Vec<f32> = v.iter().copied().filter(|x| x.is_finite()).collect();
     if xs.is_empty() {
-        return f64::NAN;
+        return f32::NAN;
     }
     xs.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     let n = xs.len();
@@ -69,15 +69,15 @@ pub fn median(v: &[f64]) -> f64 {
     }
 }
 
-pub fn mean(v: &[f64]) -> f64 {
-    let xs: Vec<f64> = v.iter().copied().filter(|x| x.is_finite()).collect();
+pub fn mean(v: &[f32]) -> f32 {
+    let xs: Vec<f32> = v.iter().copied().filter(|x| x.is_finite()).collect();
     if xs.is_empty() {
-        return f64::NAN;
+        return f32::NAN;
     }
-    xs.iter().sum::<f64>() / xs.len() as f64
+    xs.iter().sum::<f32>() / xs.len() as f32
 }
 
-pub fn stats(v: &[f64]) -> (f64, f64) {
+pub fn stats(v: &[f32]) -> (f32, f32) {
     (median(v), mean(v))
 }
 

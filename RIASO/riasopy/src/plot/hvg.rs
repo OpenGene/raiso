@@ -9,7 +9,7 @@ use crate::parallel::par_bbox_opt;
 
 const OTHER_GRAY: RGBColor = RGBColor(0xcc, 0xcc, 0xcc);
 
-fn extract_hvg(data: &SoData) -> anyhow::Result<(Vec<f64>, Vec<f64>, Vec<f64>, Vec<bool>)> {
+fn extract_hvg(data: &SoData) -> anyhow::Result<(Vec<f32>, Vec<f32>, Vec<f32>, Vec<bool>)> {
     let hvg = match &data.result.hvg {
         Some(h) => h,
         None => {
@@ -49,9 +49,9 @@ pub fn plot_hvg_png(data: &SoData, size: (u32, u32)) -> anyhow::Result<Vec<u8>> 
 
 fn render_hvg<DB: DrawingBackend>(
     root: DrawingArea<DB, Shift>,
-    means: &[f64],
-    dispersions: &[f64],
-    dispersions_norm: &[f64],
+    means: &[f32],
+    dispersions: &[f32],
+    dispersions_norm: &[f32],
     hv: &[bool],
 ) -> Result<(), DrawingAreaErrorKind<DB::ErrorType>> {
     root.fill(&WHITE)?;
@@ -83,8 +83,8 @@ fn hvg_panel<DB: DrawingBackend>(
     area: &DrawingArea<DB, Shift>,
     x_label: &str,
     y_label: &str,
-    means: &[f64],
-    ys: &[f64],
+    means: &[f32],
+    ys: &[f32],
     hv: &[bool],
 ) -> Result<(), DrawingAreaErrorKind<DB::ErrorType>> {
     if means.is_empty() {
@@ -119,9 +119,9 @@ fn hvg_panel<DB: DrawingBackend>(
         .draw()?;
 
     let (pw, _ph) = chart.plotting_area().dim_in_pixel();
-    let r = 3.0 * (x1 - x0) / (pw as f64).max(1.0);
+    let r = 3.0 * (x1 - x0) / (pw as f32).max(1.0);
 
-    let dots: Vec<((f64, f64), RGBColor)> = means
+    let dots: Vec<((f32, f32), RGBColor)> = means
         .par_iter()
         .zip(ys.par_iter())
         .zip(hv.par_iter())

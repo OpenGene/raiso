@@ -11,7 +11,7 @@ use crate::parallel::SendPtr;
 
 const BAR_W: i32 = 72;
 
-const GREENS_ANCHORS: [(f64, (u8, u8, u8)); 5] = [
+const GREENS_ANCHORS: [(f32, (u8, u8, u8)); 5] = [
     (0.00, (0xf7, 0xfc, 0xf5)),
     (0.25, (0xc7, 0xe9, 0xc0)),
     (0.50, (0x74, 0xc4, 0x76)),
@@ -19,14 +19,14 @@ const GREENS_ANCHORS: [(f64, (u8, u8, u8)); 5] = [
     (1.00, (0x00, 0x44, 0x1b)),
 ];
 
-fn greens_colormap(t: f64) -> RGBColor {
+fn greens_colormap(t: f32) -> RGBColor {
     let t = t.clamp(0.0, 1.0);
     for w in GREENS_ANCHORS.windows(2) {
         let (t0, c0) = w[0];
         let (t1, c1) = w[1];
         if t <= t1 {
             let f = (t - t0) / (t1 - t0);
-            let lerp = |a: u8, b: u8| (a as f64 + (b as f64 - a as f64) * f).round() as u8;
+            let lerp = |a: u8, b: u8| (a as f32 + (b as f32 - a as f32) * f).round() as u8;
             return RGBColor(lerp(c0.0, c1.0), lerp(c0.1, c1.1), lerp(c0.2, c1.2));
         }
     }
@@ -34,12 +34,12 @@ fn greens_colormap(t: f64) -> RGBColor {
     RGBColor(c.0, c.1, c.2)
 }
 
-pub(crate) fn densify(exp: &ExpMatrix) -> Array2<f64> {
+pub(crate) fn densify(exp: &ExpMatrix) -> Array2<f32> {
     match exp {
-        ExpMatrix::Dense(d) => d.mapv(|v| v as f64),
+        ExpMatrix::Dense(d) => d.mapv(|v| v),
         ExpMatrix::Sparse(csr) => {
             let (nrows, ncols) = (csr.nrows(), csr.ncols());
-            let mut dense = Array2::<f64>::zeros((nrows, ncols));
+            let mut dense = Array2::<f32>::zeros((nrows, ncols));
             let offsets = csr.row_offsets();
             let cols = csr.col_indices();
             let vals = csr.values();
@@ -48,7 +48,7 @@ pub(crate) fn densify(exp: &ExpMatrix) -> Array2<f64> {
                 let row_ptr = unsafe { ptr.add(row * ncols) };
                 for idx in offsets[row]..offsets[row + 1] {
                     unsafe {
-                        *row_ptr.add(cols[idx]) = vals[idx] as f64;
+                        *row_ptr.add(cols[idx]) = vals[idx];
                     }
                 }
             });
@@ -57,13 +57,13 @@ pub(crate) fn densify(exp: &ExpMatrix) -> Array2<f64> {
     }
 }
 
-fn cluster_mean_matrix(dense: &Array2<f64>, labels: &[i64], cluster_ids: &[i64]) -> Array2<f64> {
+fn cluster_mean_matrix(dense: &Array2<f32>, labels: &[i64], cluster_ids: &[i64]) -> Array2<f32> {
     let n_genes = dense.ncols();
     let n_clusters = cluster_ids.len();
-    let mut out = Array2::<f64>::zeros((n_clusters, n_genes));
+    let mut out = Array2::<f32>::zeros((n_clusters, n_genes));
     let ptr = SendPtr(out.as_mut_ptr());
     cluster_ids.par_iter().enumerate().for_each(|(r, &cid)| {
-        let mut sums = vec![0.0f64; n_genes];
+        let mut sums = vec![0.0f32; n_genes];
         let mut cnt = 0usize;
         for (i, &lab) in labels.iter().enumerate() {
             if lab == cid {
@@ -73,7 +73,7 @@ fn cluster_mean_matrix(dense: &Array2<f64>, labels: &[i64], cluster_ids: &[i64])
                 }
             }
         }
-        let cnt = cnt.max(1) as f64;
+        let cnt = cnt.max(1) as f32;
         let row_ptr = unsafe { ptr.add(r * n_genes) };
 
         #[allow(clippy::needless_range_loop)]
@@ -86,10 +86,10 @@ fn cluster_mean_matrix(dense: &Array2<f64>, labels: &[i64], cluster_ids: &[i64])
     out
 }
 
-fn cluster_pct_matrix(dense: &Array2<f64>, labels: &[i64], cluster_ids: &[i64]) -> Array2<f64> {
+fn cluster_pct_matrix(dense: &Array2<f32>, labels: &[i64], cluster_ids: &[i64]) -> Array2<f32> {
     let n_genes = dense.ncols();
     let n_clusters = cluster_ids.len();
-    let mut out = Array2::<f64>::zeros((n_clusters, n_genes));
+    let mut out = Array2::<f32>::zeros((n_clusters, n_genes));
     let ptr = SendPtr(out.as_mut_ptr());
     cluster_ids.par_iter().enumerate().for_each(|(r, &cid)| {
         let mut cnt_pos = vec![0usize; n_genes];
@@ -104,13 +104,13 @@ fn cluster_pct_matrix(dense: &Array2<f64>, labels: &[i64], cluster_ids: &[i64]) 
                 }
             }
         }
-        let cnt = cnt.max(1) as f64;
+        let cnt = cnt.max(1) as f32;
         let row_ptr = unsafe { ptr.add(r * n_genes) };
 
         #[allow(clippy::needless_range_loop)]
         for g in 0..n_genes {
             unsafe {
-                *row_ptr.add(g) = cnt_pos[g] as f64 / cnt;
+                *row_ptr.add(g) = cnt_pos[g] as f32 / cnt;
             }
         }
     });
@@ -168,10 +168,10 @@ fn select_marker_rows(
     (sel, blocks)
 }
 
-fn standard_scale_gene(mat: &mut Array2<f64>) {
+fn standard_scale_gene(mat: &mut Array2<f32>) {
     for mut row in mat.rows_mut() {
-        let mut mn = f64::INFINITY;
-        let mut mx = f64::NEG_INFINITY;
+        let mut mn = f32::INFINITY;
+        let mut mx = f32::NEG_INFINITY;
         let mut any_finite = false;
         for &v in row.iter() {
             if v.is_finite() {
@@ -199,9 +199,9 @@ fn standard_scale_gene(mat: &mut Array2<f64>) {
 
 pub(crate) fn draw_colorbar<DB: DrawingBackend>(
     area: &DrawingArea<DB, Shift>,
-    vmin: f64,
-    vmax: f64,
-    cmap: fn(f64) -> RGBColor,
+    vmin: f32,
+    vmax: f32,
+    cmap: fn(f32) -> RGBColor,
 ) -> Result<(), DrawingAreaErrorKind<DB::ErrorType>> {
     let (w, h) = area.dim_in_pixel();
     let (w, h) = (w as i32, h as i32);
@@ -212,7 +212,7 @@ pub(crate) fn draw_colorbar<DB: DrawingBackend>(
     let y1 = (h - pad).max(y0 + 1);
     let n = 128;
     for i in 0..n {
-        let t = 1.0 - i as f64 / (n as f64 - 1.0);
+        let t = 1.0 - i as f32 / (n as f32 - 1.0);
         let ya = y0 + (y1 - y0) * i / n;
         let yb = y0 + (y1 - y0) * (i + 1) / n;
         area.draw(&Rectangle::new([(x0, ya), (x1, yb)], cmap(t).filled()))?;
@@ -225,7 +225,7 @@ pub(crate) fn draw_colorbar<DB: DrawingBackend>(
     Ok(())
 }
 
-fn fmt_short(v: f64) -> String {
+fn fmt_short(v: f32) -> String {
     let a = v.abs();
     if a >= 1000.0 {
         format!("{v:.0}")
@@ -241,8 +241,8 @@ fn fmt_short(v: f64) -> String {
 struct Layout {
     x0: i32,
     y0: i32,
-    cell_w: f64,
-    cell_h: f64,
+    cell_w: f32,
+    cell_h: f32,
     grp_w: i32,
     bracket_x: i32,
 }
@@ -264,8 +264,8 @@ fn compute_layout(
     let y0 = top_h;
     let x1 = (bw - right_pad).max(x0 + 1);
     let y1 = (bh - bottom_pad).max(y0 + 1);
-    let cell_w = (x1 - x0) as f64 / n_clusters as f64;
-    let cell_h = (y1 - y0) as f64 / n_genes as f64;
+    let cell_w = (x1 - x0) as f32 / n_clusters as f32;
+    let cell_h = (y1 - y0) as f32 / n_genes as f32;
     let bracket_x = grp_w + br_w / 2;
     Layout {
         x0,
@@ -284,8 +284,8 @@ fn draw_top_cluster_labels<DB: DrawingBackend>(
 ) -> Result<(), DrawingAreaErrorKind<DB::ErrorType>> {
     let cl_style = ("sans-serif", 11.0).into_font().color(&BLACK);
     for (c, label) in labels.iter().enumerate() {
-        let cx0 = lay.x0 + (c as f64 * lay.cell_w).floor() as i32;
-        let cx1 = (lay.x0 + ((c + 1) as f64 * lay.cell_w).ceil() as i32 - 1).max(cx0);
+        let cx0 = lay.x0 + (c as f32 * lay.cell_w).floor() as i32;
+        let cx1 = (lay.x0 + ((c + 1) as f32 * lay.cell_w).ceil() as i32 - 1).max(cx0);
         let cx_mid = cx0 + (cx1 - cx0) / 2;
         let w_px = (label.len() as i32 * 7).max(12);
         area.draw_text(label, &cl_style, (cx_mid - w_px / 2, 4))?;
@@ -312,8 +312,8 @@ fn draw_left_group_labels<DB: DrawingBackend>(
 ) -> Result<(), DrawingAreaErrorKind<DB::ErrorType>> {
     let grp_style = ("sans-serif", 11.0).into_font().color(&BLACK);
     for &(s, e, cid) in gene_blocks {
-        let gy0 = (lay.y0 as f64 + s as f64 * lay.cell_h).ceil() as i32;
-        let gy1 = (lay.y0 as f64 + e as f64 * lay.cell_h).floor() as i32 - 1;
+        let gy0 = (lay.y0 as f32 + s as f32 * lay.cell_h).ceil() as i32;
+        let gy1 = (lay.y0 as f32 + e as f32 * lay.cell_h).floor() as i32 - 1;
         if gy1 < gy0 {
             continue;
         }
@@ -338,8 +338,8 @@ fn draw_left_group_labels<DB: DrawingBackend>(
     let gene_style = ("sans-serif", 11.0).into_font().color(&BLACK);
     let stride = ((16.0 / lay.cell_h).ceil() as usize).max(1);
     for (g, name) in gene_labels.iter().enumerate().step_by(stride) {
-        let gy0 = lay.y0 + (g as f64 * lay.cell_h).floor() as i32;
-        let gy1 = (lay.y0 + ((g + 1) as f64 * lay.cell_h).ceil() as i32 - 1).max(gy0);
+        let gy0 = lay.y0 + (g as f32 * lay.cell_h).floor() as i32;
+        let gy1 = (lay.y0 + ((g + 1) as f32 * lay.cell_h).ceil() as i32 - 1).max(gy0);
         let cy_mid = gy0 + (gy1 - gy0) / 2;
         let w_px = text_w(area, name, &gene_style);
         area.draw_text(name, &gene_style, (lay.x0 - 4 - w_px, cy_mid - 6))?;
@@ -383,10 +383,10 @@ fn render_marker_heatmap<DB: DrawingBackend>(
         .into_par_iter()
         .map(|k| {
             let (g, c) = (k / n_clusters, k % n_clusters);
-            let cy0 = lay.y0 + (g as f64 * lay.cell_h).floor() as i32;
-            let cy1 = (lay.y0 + ((g + 1) as f64 * lay.cell_h).ceil() as i32).max(cy0);
-            let cx0 = lay.x0 + (c as f64 * lay.cell_w).floor() as i32;
-            let cx1 = (lay.x0 + ((c + 1) as f64 * lay.cell_w).ceil() as i32).max(cx0);
+            let cy0 = lay.y0 + (g as f32 * lay.cell_h).floor() as i32;
+            let cy1 = (lay.y0 + ((g + 1) as f32 * lay.cell_h).ceil() as i32).max(cy0);
+            let cx0 = lay.x0 + (c as f32 * lay.cell_w).floor() as i32;
+            let cx1 = (lay.x0 + ((c + 1) as f32 * lay.cell_w).ceil() as i32).max(cx0);
             ((cx0, cy0), (cx1, cy1), greens_colormap(d.mat[[g, c]]))
         })
         .collect();
@@ -413,8 +413,8 @@ fn draw_size_legend<DB: DrawingBackend>(
     let base_y = (h - 14).max(step * 4);
     let color = RGBColor(0x2f, 0x8f, 0x4c);
     let frac_style = ("sans-serif", 10.0).into_font().color(&BLACK);
-    for (k, f) in [0.2f64, 0.4, 0.6, 0.8, 1.0].iter().enumerate() {
-        let r = (max_r as f64 * f.sqrt()).round() as i32;
+    for (k, f) in [0.2f32, 0.4, 0.6, 0.8, 1.0].iter().enumerate() {
+        let r = (max_r as f32 * f.sqrt()).round() as i32;
         let cy = base_y - k as i32 * step;
         area.draw(&Circle::new((cx, cy), r.max(1), color.filled()))?;
         area.draw_text(&format!("{f:.1}"), &frac_style, (cx + max_r + 3, cy - 5))?;
@@ -461,17 +461,17 @@ fn render_marker_dotplot<DB: DrawingBackend>(
         .into_par_iter()
         .filter_map(|k| {
             let (g, c) = (k / n_clusters, k % n_clusters);
-            let cy0 = lay.y0 + (g as f64 * lay.cell_h).floor() as i32;
-            let cy1 = (lay.y0 + ((g + 1) as f64 * lay.cell_h).ceil() as i32 - 1).max(cy0);
+            let cy0 = lay.y0 + (g as f32 * lay.cell_h).floor() as i32;
+            let cy1 = (lay.y0 + ((g + 1) as f32 * lay.cell_h).ceil() as i32 - 1).max(cy0);
             let cy_mid = cy0 + (cy1 - cy0) / 2;
-            let cx0 = lay.x0 + (c as f64 * lay.cell_w).floor() as i32;
-            let cx1 = (lay.x0 + ((c + 1) as f64 * lay.cell_w).ceil() as i32 - 1).max(cx0);
+            let cx0 = lay.x0 + (c as f32 * lay.cell_w).floor() as i32;
+            let cx1 = (lay.x0 + ((c + 1) as f32 * lay.cell_w).ceil() as i32 - 1).max(cx0);
             let cx_mid = cx0 + (cx1 - cx0) / 2;
             let p = d.frac[[g, c]];
             if p <= 0.0 {
                 return None;
             }
-            let r = (max_r as f64 * p.sqrt()).round() as i32;
+            let r = (max_r as f32 * p.sqrt()).round() as i32;
             if r <= 0 {
                 return None;
             }
@@ -496,7 +496,7 @@ fn render_marker_dotplot<DB: DrawingBackend>(
 }
 
 struct ClusterHeatmapData {
-    mat: Array2<f64>,
+    mat: Array2<f32>,
 
     gene_labels: Vec<String>,
 
@@ -506,7 +506,7 @@ struct ClusterHeatmapData {
 }
 
 struct CommonPrepare {
-    dense: Array2<f64>,
+    dense: Array2<f32>,
 
     sel: Vec<usize>,
 
@@ -588,7 +588,7 @@ fn prepare(
 ) -> anyhow::Result<ClusterHeatmapData> {
     let p = prepare_common(sd, marker, cluster_key, top_n, groups)?;
     let means = cluster_mean_matrix(&p.dense, &p.labels, &p.cluster_ids);
-    let mut mat = Array2::<f64>::zeros((p.sel.len(), p.cluster_ids.len()));
+    let mut mat = Array2::<f32>::zeros((p.sel.len(), p.cluster_ids.len()));
     for (r, &gi) in p.sel.iter().enumerate() {
         for c in 0..p.cluster_ids.len() {
             mat[[r, c]] = means[[c, gi]];
@@ -604,9 +604,9 @@ fn prepare(
 }
 
 struct DotplotData {
-    frac: Array2<f64>,
+    frac: Array2<f32>,
 
-    color: Array2<f64>,
+    color: Array2<f32>,
 
     gene_labels: Vec<String>,
 
@@ -625,8 +625,8 @@ fn prepare_dotplot(
     let p = prepare_common(sd, marker, cluster_key, top_n, groups)?;
     let means = cluster_mean_matrix(&p.dense, &p.labels, &p.cluster_ids);
     let pcts = cluster_pct_matrix(&p.dense, &p.labels, &p.cluster_ids);
-    let mut color = Array2::<f64>::zeros((p.sel.len(), p.cluster_ids.len()));
-    let mut frac = Array2::<f64>::zeros((p.sel.len(), p.cluster_ids.len()));
+    let mut color = Array2::<f32>::zeros((p.sel.len(), p.cluster_ids.len()));
+    let mut frac = Array2::<f32>::zeros((p.sel.len(), p.cluster_ids.len()));
     for (r, &gi) in p.sel.iter().enumerate() {
         for c in 0..p.cluster_ids.len() {
             color[[r, c]] = means[[c, gi]];

@@ -35,12 +35,12 @@ impl ExpMatrix {
         (self.n_rows(), self.n_cols())
     }
 
-    pub fn to_dense(&self) -> Array2<f64> {
+    pub fn to_dense(&self) -> Array2<f32> {
         match self {
-            Self::Dense(arr) => arr.mapv(|v| v as f64),
+            Self::Dense(arr) => arr.mapv(|v| v),
             Self::Sparse(csr) => {
                 let (nrows, ncols) = (csr.nrows(), csr.ncols());
-                let mut dense = Array2::<f64>::zeros((nrows, ncols));
+                let mut dense = Array2::<f32>::zeros((nrows, ncols));
                 let offsets = csr.row_offsets();
                 let cols = csr.col_indices();
                 let vals = csr.values();
@@ -50,7 +50,7 @@ impl ExpMatrix {
                     let row_ptr = unsafe { ptr.add(r * ncols) };
                     for i in offsets[r]..offsets[r + 1] {
                         unsafe {
-                            *row_ptr.add(cols[i]) = vals[i] as f64;
+                            *row_ptr.add(cols[i]) = vals[i];
                         }
                     }
                 });
@@ -70,7 +70,7 @@ pub struct SoData {
 
     pub var: Option<DataFrame>,
 
-    pub position: Option<Array2<f64>>,
+    pub position: Option<Array2<f32>>,
 
     pub raw: Option<Box<SoData>>,
 

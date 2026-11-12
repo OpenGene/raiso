@@ -13,7 +13,7 @@ use super::umap::{
     cluster_colors, draw_legend, extract_clusters, legend_width, unique_sorted, unique_sorted_str,
 };
 
-fn extract_positions_batch(sd: &SoData) -> anyhow::Result<(Vec<f64>, Vec<f64>, Vec<i64>)> {
+fn extract_positions_batch(sd: &SoData) -> anyhow::Result<(Vec<f32>, Vec<f32>, Vec<i64>)> {
     let pos = sd
         .position
         .as_ref()
@@ -41,7 +41,7 @@ fn extract_positions_batch(sd: &SoData) -> anyhow::Result<(Vec<f64>, Vec<f64>, V
     Ok((xs, ys, batch))
 }
 
-fn reorganize(batch: &[i64], xs: &mut [f64], ys: &mut [f64], ncols: usize, h_off: f64, v_off: f64) {
+fn reorganize(batch: &[i64], xs: &mut [f32], ys: &mut [f32], ncols: usize, h_off: f32, v_off: f32) {
     if xs.is_empty() {
         return;
     }
@@ -63,7 +63,7 @@ fn reorganize(batch: &[i64], xs: &mut [f64], ys: &mut [f64], ncols: usize, h_off
     for ids in &idx {
         let (min_x, min_y) = ids
             .iter()
-            .fold((f64::INFINITY, f64::INFINITY), |(mx, my), &i| {
+            .fold((f32::INFINITY, f32::INFINITY), |(mx, my), &i| {
                 (mx.min(xs[i]), my.min(ys[i]))
             });
         for &i in ids {
@@ -72,13 +72,13 @@ fn reorganize(batch: &[i64], xs: &mut [f64], ys: &mut [f64], ncols: usize, h_off
         }
     }
 
-    let mut max_xs = vec![0.0f64; ncols + 1];
-    let mut max_ys = vec![0.0f64; nrows + 1];
+    let mut max_xs = vec![0.0f32; ncols + 1];
+    let mut max_ys = vec![0.0f32; nrows + 1];
     for (i, ids) in idx.iter().enumerate() {
         let row = i / ncols;
         let col = i % ncols;
-        let (mut mx, mut mnx) = (f64::NEG_INFINITY, f64::INFINITY);
-        let (mut my, mut mny) = (f64::NEG_INFINITY, f64::INFINITY);
+        let (mut mx, mut mnx) = (f32::NEG_INFINITY, f32::INFINITY);
+        let (mut my, mut mny) = (f32::NEG_INFINITY, f32::INFINITY);
         for &j in ids {
             mx = mx.max(xs[j]);
             mnx = mnx.min(xs[j]);
@@ -101,10 +101,10 @@ fn reorganize(batch: &[i64], xs: &mut [f64], ys: &mut [f64], ncols: usize, h_off
         let mut x_add = max_xs[col];
         let mut y_add = max_ys[row];
         if col > 0 {
-            x_add += max_xs[..col].iter().sum::<f64>() + h_off * col as f64;
+            x_add += max_xs[..col].iter().sum::<f32>() + h_off * col as f32;
         }
         if row > 0 {
-            y_add += max_ys[..row].iter().sum::<f64>() + v_off * row as f64;
+            y_add += max_ys[..row].iter().sum::<f32>() + v_off * row as f32;
         }
         for &j in ids {
             xs[j] += x_add;
@@ -113,15 +113,15 @@ fn reorganize(batch: &[i64], xs: &mut [f64], ys: &mut [f64], ncols: usize, h_off
     }
 }
 
-fn resolution_nm(sd: &SoData) -> f64 {
+fn resolution_nm(sd: &SoData) -> f32 {
     sd.uns
         .get("resolution")
         .and_then(|v| v.as_u64())
-        .map(|v| v as f64)
+        .map(|v| v as f32)
         .unwrap_or(1.0)
 }
 
-fn fmt_real_length(nm: f64) -> String {
+fn fmt_real_length(nm: f32) -> String {
     let (v, unit) = if nm >= 1e9 {
         (nm / 1e9, "m")
     } else if nm >= 1e6 {
@@ -155,13 +155,13 @@ pub fn plot_cluster_scatter(
     title: Option<&str>,
     x_label: Option<&str>,
     y_label: Option<&str>,
-    dot_size: Option<f64>,
+    dot_size: Option<f32>,
     size: (u32, u32),
     show_plotting_scale: bool,
-    plotting_scale_width: Option<f64>,
+    plotting_scale_width: Option<f32>,
     reorganize_coordinate: Option<usize>,
-    horizontal_offset_additional: f64,
-    vertical_offset_additional: f64,
+    horizontal_offset_additional: f32,
+    vertical_offset_additional: f32,
     split_by_batch: bool,
 ) -> anyhow::Result<()> {
     let labels = extract_clusters(sd, cluster_key)?;
@@ -220,13 +220,13 @@ pub fn plot_cluster_scatter_png(
     title: Option<&str>,
     x_label: Option<&str>,
     y_label: Option<&str>,
-    dot_size: Option<f64>,
+    dot_size: Option<f32>,
     size: (u32, u32),
     show_plotting_scale: bool,
-    plotting_scale_width: Option<f64>,
+    plotting_scale_width: Option<f32>,
     reorganize_coordinate: Option<usize>,
-    horizontal_offset_additional: f64,
-    vertical_offset_additional: f64,
+    horizontal_offset_additional: f32,
+    vertical_offset_additional: f32,
     split_by_batch: bool,
 ) -> anyhow::Result<Vec<u8>> {
     let labels = extract_clusters(sd, cluster_key)?;
@@ -293,13 +293,13 @@ pub fn plot_annotation_scatter(
     title: Option<&str>,
     x_label: Option<&str>,
     y_label: Option<&str>,
-    dot_size: Option<f64>,
+    dot_size: Option<f32>,
     size: (u32, u32),
     show_plotting_scale: bool,
-    plotting_scale_width: Option<f64>,
+    plotting_scale_width: Option<f32>,
     reorganize_coordinate: Option<usize>,
-    horizontal_offset_additional: f64,
-    vertical_offset_additional: f64,
+    horizontal_offset_additional: f32,
+    vertical_offset_additional: f32,
     split_by_batch: bool,
 ) -> anyhow::Result<()> {
     let sorted = unique_sorted_str(labels);
@@ -354,13 +354,13 @@ pub fn plot_annotation_scatter_png(
     title: Option<&str>,
     x_label: Option<&str>,
     y_label: Option<&str>,
-    dot_size: Option<f64>,
+    dot_size: Option<f32>,
     size: (u32, u32),
     show_plotting_scale: bool,
-    plotting_scale_width: Option<f64>,
+    plotting_scale_width: Option<f32>,
     reorganize_coordinate: Option<usize>,
-    horizontal_offset_additional: f64,
-    vertical_offset_additional: f64,
+    horizontal_offset_additional: f32,
+    vertical_offset_additional: f32,
     split_by_batch: bool,
 ) -> anyhow::Result<Vec<u8>> {
     let sorted = unique_sorted_str(labels);
@@ -422,13 +422,13 @@ pub fn plot_singler_scatter(
     title: Option<&str>,
     x_label: Option<&str>,
     y_label: Option<&str>,
-    dot_size: Option<f64>,
+    dot_size: Option<f32>,
     size: (u32, u32),
     show_plotting_scale: bool,
-    plotting_scale_width: Option<f64>,
+    plotting_scale_width: Option<f32>,
     reorganize_coordinate: Option<usize>,
-    horizontal_offset_additional: f64,
-    vertical_offset_additional: f64,
+    horizontal_offset_additional: f32,
+    vertical_offset_additional: f32,
     split_by_batch: bool,
 ) -> anyhow::Result<()> {
     let labels = extract_annotation_labels(data)?;
@@ -456,13 +456,13 @@ pub fn plot_singler_scatter_png(
     title: Option<&str>,
     x_label: Option<&str>,
     y_label: Option<&str>,
-    dot_size: Option<f64>,
+    dot_size: Option<f32>,
     size: (u32, u32),
     show_plotting_scale: bool,
-    plotting_scale_width: Option<f64>,
+    plotting_scale_width: Option<f32>,
     reorganize_coordinate: Option<usize>,
-    horizontal_offset_additional: f64,
-    vertical_offset_additional: f64,
+    horizontal_offset_additional: f32,
+    vertical_offset_additional: f32,
     split_by_batch: bool,
 ) -> anyhow::Result<Vec<u8>> {
     let labels = extract_annotation_labels(data)?;
@@ -486,17 +486,17 @@ pub fn plot_singler_scatter_png(
 #[allow(clippy::too_many_arguments)]
 fn render_categorical_scatter<DB: DrawingBackend>(
     root: DrawingArea<DB, Shift>,
-    xs: &[f64],
-    ys: &[f64],
+    xs: &[f32],
+    ys: &[f32],
     labels: &[String],
     sorted: &[String],
     title: Option<&str>,
     x_label: Option<&str>,
     y_label: Option<&str>,
-    dot_size: Option<f64>,
+    dot_size: Option<f32>,
     show_plotting_scale: bool,
-    plotting_scale_width: Option<f64>,
-    resolution_nm: f64,
+    plotting_scale_width: Option<f32>,
+    resolution_nm: f32,
 ) -> Result<(), DrawingAreaErrorKind<DB::ErrorType>> {
     root.fill(&WHITE)?;
     let root = match title {
@@ -541,16 +541,16 @@ fn render_categorical_scatter<DB: DrawingBackend>(
     let avail_w = (w - legend_w).max(200);
 
     let ar = (x1 - cx0) / (cy1 - y0);
-    let plw_w = (avail_w - MARGIN * 2 - Y_LABEL).max(1) as f64;
-    let mut pw = avail_w as f64;
-    let mut ph = plw_w / ar + (MARGIN * 2 + X_LABEL) as f64;
-    if ph > h as f64 {
-        ph = h as f64;
-        let plh = (ph - (MARGIN * 2 + X_LABEL) as f64).max(1.0);
-        pw = plh * ar + (MARGIN * 2 + Y_LABEL) as f64;
+    let plw_w = (avail_w - MARGIN * 2 - Y_LABEL).max(1) as f32;
+    let mut pw = avail_w as f32;
+    let mut ph = plw_w / ar + (MARGIN * 2 + X_LABEL) as f32;
+    if ph > h as f32 {
+        ph = h as f32;
+        let plh = (ph - (MARGIN * 2 + X_LABEL) as f32).max(1.0);
+        pw = plh * ar + (MARGIN * 2 + Y_LABEL) as f32;
     }
-    let pw = (pw.max(200.0)).min(avail_w as f64) as i32;
-    let ph = (ph.max(200.0)).min(h as f64) as i32;
+    let pw = (pw.max(200.0)).min(avail_w as f32) as i32;
+    let ph = (ph.max(200.0)).min(h as f32) as i32;
 
     let (main_area, legend_area) = root.split_horizontally(avail_w.min(w));
     let (mw, mh) = main_area.dim_in_pixel();
@@ -578,13 +578,13 @@ fn render_categorical_scatter<DB: DrawingBackend>(
 
     let (pw_px, ph_px) = chart.plotting_area().dim_in_pixel();
     let dot_size = dot_size.unwrap_or_else(|| {
-        let area = (pw_px as f64) * (ph_px as f64);
+        let area = (pw_px as f32) * (ph_px as f32);
         super::spatial::default_dot_size_px(xs.len(), area)
     });
-    let hx = dot_size * 0.5 * (x1 - cx0) / (pw_px as f64).max(1.0);
-    let hy = dot_size * 0.5 * (cy1 - y0) / (ph_px as f64).max(1.0);
+    let hx = dot_size * 0.5 * (x1 - cx0) / (pw_px as f32).max(1.0);
+    let hy = dot_size * 0.5 * (cy1 - y0) / (ph_px as f32).max(1.0);
 
-    let pts: Vec<(f64, f64, RGBColor)> = xs
+    let pts: Vec<(f32, f32, RGBColor)> = xs
         .par_iter()
         .zip(ys.par_iter())
         .zip(labels.par_iter())
@@ -625,7 +625,7 @@ fn render_categorical_scatter<DB: DrawingBackend>(
 fn extract_categorical_by_batch(
     sd: &SoData,
     labels: &[String],
-) -> anyhow::Result<Vec<(String, Vec<f64>, Vec<f64>, Vec<String>)>> {
+) -> anyhow::Result<Vec<(String, Vec<f32>, Vec<f32>, Vec<String>)>> {
     let (xs, ys, batch) = extract_positions_batch(sd)?;
     if labels.len() != xs.len() {
         return Err(anyhow!(
@@ -638,7 +638,7 @@ fn extract_categorical_by_batch(
     batches.sort_unstable();
     batches.dedup();
 
-    let out: Vec<(String, Vec<f64>, Vec<f64>, Vec<String>)> = batches
+    let out: Vec<(String, Vec<f32>, Vec<f32>, Vec<String>)> = batches
         .par_iter()
         .map(|&b| {
             let name = sd
@@ -679,11 +679,11 @@ fn extract_categorical_by_batch(
 fn categorical_scatter_panel<DB: DrawingBackend>(
     area: &DrawingArea<DB, Shift>,
     name: &str,
-    xs: &[f64],
-    ys: &[f64],
+    xs: &[f32],
+    ys: &[f32],
     labels: &[String],
     color_of: &HashMap<String, RGBColor>,
-    dot_size: Option<f64>,
+    dot_size: Option<f32>,
 ) -> Result<(), DrawingAreaErrorKind<DB::ErrorType>> {
     if xs.is_empty() {
         return Ok(());
@@ -706,16 +706,16 @@ fn categorical_scatter_panel<DB: DrawingBackend>(
     let (aw, ah) = area.dim_in_pixel();
     let (aw, ah) = (aw as i32, ah as i32);
     let ar = (x1 - x0) / (y1 - y0);
-    let plw_w = (aw - MARGIN * 2 - Y_LABEL).max(1) as f64;
-    let mut pw = aw as f64;
-    let mut ph = plw_w / ar + (MARGIN * 2 + X_LABEL + CAPTION) as f64;
-    if ph > ah as f64 {
-        ph = ah as f64;
-        let plh = (ph - (MARGIN * 2 + X_LABEL + CAPTION) as f64).max(1.0);
-        pw = plh * ar + (MARGIN * 2 + Y_LABEL) as f64;
+    let plw_w = (aw - MARGIN * 2 - Y_LABEL).max(1) as f32;
+    let mut pw = aw as f32;
+    let mut ph = plw_w / ar + (MARGIN * 2 + X_LABEL + CAPTION) as f32;
+    if ph > ah as f32 {
+        ph = ah as f32;
+        let plh = (ph - (MARGIN * 2 + X_LABEL + CAPTION) as f32).max(1.0);
+        pw = plh * ar + (MARGIN * 2 + Y_LABEL) as f32;
     }
-    let pw = (pw.max(1.0)).min(aw as f64) as i32;
-    let ph = (ph.max(1.0)).min(ah as f64) as i32;
+    let pw = (pw.max(1.0)).min(aw as f32) as i32;
+    let ph = (ph.max(1.0)).min(ah as f32) as i32;
     let left_pad = ((aw - pw) / 2).max(0);
     let top_pad = ((ah - ph) / 2).max(0);
     let plot_area = area.margin(top_pad, top_pad, left_pad, left_pad);
@@ -738,12 +738,12 @@ fn categorical_scatter_panel<DB: DrawingBackend>(
 
     let (pw_px, ph_px) = chart.plotting_area().dim_in_pixel();
     let dot_size = dot_size.unwrap_or_else(|| {
-        let area = (pw_px as f64) * (ph_px as f64);
+        let area = (pw_px as f32) * (ph_px as f32);
         super::spatial::default_dot_size_px(xs.len(), area)
     });
-    let hx = dot_size * 0.5 * (x1 - x0) / (pw_px as f64).max(1.0);
-    let hy = dot_size * 0.5 * (y1 - y0) / (ph_px as f64).max(1.0);
-    let pts: Vec<(f64, f64, RGBColor)> = xs
+    let hx = dot_size * 0.5 * (x1 - x0) / (pw_px as f32).max(1.0);
+    let hy = dot_size * 0.5 * (y1 - y0) / (ph_px as f32).max(1.0);
+    let pts: Vec<(f32, f32, RGBColor)> = xs
         .par_iter()
         .zip(ys.par_iter())
         .zip(labels.par_iter())
@@ -762,11 +762,11 @@ fn categorical_scatter_panel<DB: DrawingBackend>(
 #[allow(clippy::too_many_arguments)]
 fn render_categorical_by_batch<DB: DrawingBackend>(
     root: DrawingArea<DB, Shift>,
-    samples: &[(String, Vec<f64>, Vec<f64>, Vec<String>)],
+    samples: &[(String, Vec<f32>, Vec<f32>, Vec<String>)],
     sorted: &[String],
     ncols: usize,
     title: Option<&str>,
-    dot_size: Option<f64>,
+    dot_size: Option<f32>,
 ) -> Result<(), DrawingAreaErrorKind<DB::ErrorType>> {
     root.fill(&WHITE)?;
     let root = match title {

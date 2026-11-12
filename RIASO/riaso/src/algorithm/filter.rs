@@ -15,11 +15,11 @@ fn save_filtered_layer(data: &mut SoData, write_layer: bool) {
 
 pub fn filter_cells(
     data: &mut SoData,
-    min_counts: Option<f64>,
-    max_counts: Option<f64>,
+    min_counts: Option<f32>,
+    max_counts: Option<f32>,
     min_genes: Option<i64>,
     max_genes: Option<i64>,
-    pct_counts_mt: Option<f64>,
+    pct_counts_mt: Option<f32>,
     cell_list: Option<&[String]>,
     excluded: bool,
     write_layer: bool,
@@ -38,7 +38,7 @@ pub fn filter_cells(
 
     if let Some(min_c) = min_counts {
         if let Ok(col) = obs.column("total_counts") {
-            if let Ok(arr) = col.f64() {
+            if let Ok(arr) = col.f32() {
                 for (k, v) in keep.iter_mut().zip(arr) {
                     if let Some(v) = v {
                         *k &= v >= min_c;
@@ -49,7 +49,7 @@ pub fn filter_cells(
     }
     if let Some(max_c) = max_counts {
         if let Ok(col) = obs.column("total_counts") {
-            if let Ok(arr) = col.f64() {
+            if let Ok(arr) = col.f32() {
                 for (k, v) in keep.iter_mut().zip(arr) {
                     if let Some(v) = v {
                         *k &= v <= max_c;
@@ -82,7 +82,7 @@ pub fn filter_cells(
     }
     if let Some(pct) = pct_counts_mt {
         if let Ok(col) = obs.column("pct_counts_mt") {
-            if let Ok(arr) = col.f64() {
+            if let Ok(arr) = col.f32() {
                 for (k, v) in keep.iter_mut().zip(arr) {
                     if let Some(v) = v {
                         *k &= v <= pct;
@@ -131,9 +131,9 @@ pub fn filter_genes(
     data: &mut SoData,
     min_cells: Option<i64>,
     max_cells: Option<i64>,
-    min_counts: Option<f64>,
-    max_counts: Option<f64>,
-    mean_umi_gt: Option<f64>,
+    min_counts: Option<f32>,
+    max_counts: Option<f32>,
+    mean_umi_gt: Option<f32>,
     gene_list: Option<&[String]>,
     excluded: bool,
     filter_mt: bool,
@@ -175,7 +175,7 @@ pub fn filter_genes(
     }
     if let Some(min_c) = min_counts {
         if let Ok(col) = var.column("n_counts") {
-            if let Ok(arr) = col.f64() {
+            if let Ok(arr) = col.f32() {
                 for (k, v) in keep.iter_mut().zip(arr) {
                     if let Some(v) = v {
                         *k &= v >= min_c;
@@ -186,7 +186,7 @@ pub fn filter_genes(
     }
     if let Some(max_c) = max_counts {
         if let Ok(col) = var.column("n_counts") {
-            if let Ok(arr) = col.f64() {
+            if let Ok(arr) = col.f32() {
                 for (k, v) in keep.iter_mut().zip(arr) {
                     if let Some(v) = v {
                         *k &= v <= max_c;
@@ -197,7 +197,7 @@ pub fn filter_genes(
     }
     if let Some(mu) = mean_umi_gt {
         if let Ok(col) = var.column("mean_umi") {
-            if let Ok(arr) = col.f64() {
+            if let Ok(arr) = col.f32() {
                 for (k, v) in keep.iter_mut().zip(arr) {
                     if let Some(v) = v {
                         *k &= v > mu;
@@ -256,10 +256,10 @@ pub fn filter_genes(
 
 pub fn filter_coordinates(
     data: &mut SoData,
-    min_x: Option<f64>,
-    max_x: Option<f64>,
-    min_y: Option<f64>,
-    max_y: Option<f64>,
+    min_x: Option<f32>,
+    max_x: Option<f32>,
+    min_y: Option<f32>,
+    max_y: Option<f32>,
     write_layer: bool,
 ) {
     let n_obs = data.n_obs();

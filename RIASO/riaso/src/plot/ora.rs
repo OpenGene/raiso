@@ -14,7 +14,7 @@ const HEADER_H: i32 = 18;
 
 const AXIS_H: i32 = 28;
 
-const MAX_ROW_H: f64 = 22.0;
+const MAX_ROW_H: f32 = 22.0;
 
 const TITLE_BAND: usize = 38;
 
@@ -24,7 +24,7 @@ const LABEL_MAX_CHARS: usize = 52;
 
 const PREF_ONT: [&str; 3] = ["BP", "CC", "MF"];
 
-const SIG_ANCHORS: [(f64, (u8, u8, u8)); 5] = [
+const SIG_ANCHORS: [(f32, (u8, u8, u8)); 5] = [
     (0.00, (0xf8, 0xf8, 0xf8)),
     (0.25, (0xfd, 0xd9, 0xd9)),
     (0.50, (0xfb, 0x90, 0x90)),
@@ -36,14 +36,14 @@ const HEADER_BAND: RGBColor = RGBColor(0xef, 0xef, 0xef);
 
 const BAND: RGBColor = RGBColor(0xf7, 0xf7, 0xf7);
 
-fn sig_colormap(t: f64) -> RGBColor {
+fn sig_colormap(t: f32) -> RGBColor {
     let t = t.clamp(0.0, 1.0);
     for w in SIG_ANCHORS.windows(2) {
         let (t0, c0) = w[0];
         let (t1, c1) = w[1];
         if t <= t1 {
             let f = (t - t0) / (t1 - t0);
-            let lerp = |a: u8, b: u8| (a as f64 + (b as f64 - a as f64) * f).round() as u8;
+            let lerp = |a: u8, b: u8| (a as f32 + (b as f32 - a as f32) * f).round() as u8;
             return RGBColor(lerp(c0.0, c1.0), lerp(c0.1, c1.1), lerp(c0.2, c1.2));
         }
     }
@@ -51,7 +51,7 @@ fn sig_colormap(t: f64) -> RGBColor {
     RGBColor(c.0, c.1, c.2)
 }
 
-fn fmt_short(v: f64) -> String {
+fn fmt_short(v: f32) -> String {
     let a = v.abs();
     if a >= 1000.0 {
         format!("{v:.0}")
@@ -64,10 +64,10 @@ fn fmt_short(v: f64) -> String {
     }
 }
 
-fn fmt_tick(v: f64, step: f64) -> String {
+fn fmt_tick(v: f32, step: f32) -> String {
     let mut d = 0usize;
     loop {
-        let scaled = step * 10f64.powi(d as i32);
+        let scaled = step * 10f32.powi(d as i32);
         if (scaled - scaled.round()).abs() < 1e-6 || d >= 4 {
             break;
         }
@@ -76,12 +76,12 @@ fn fmt_tick(v: f64, step: f64) -> String {
     format!("{:.*}", d, v)
 }
 
-fn nice_step(max_v: f64, target_ticks: usize) -> f64 {
+fn nice_step(max_v: f32, target_ticks: usize) -> f32 {
     if max_v <= 0.0 {
         return 1.0;
     }
-    let raw = max_v / target_ticks.max(1) as f64;
-    let mag = 10f64.powf(raw.log10().floor());
+    let raw = max_v / target_ticks.max(1) as f32;
+    let mag = 10f32.powf(raw.log10().floor());
     for m in [1.0, 2.0, 5.0, 10.0] {
         let cand = m * mag;
         if cand >= raw {
@@ -102,21 +102,21 @@ fn truncate_label(s: &str, max_chars: usize) -> String {
     }
 }
 
-fn right_center(size: f64) -> TextStyle<'static> {
+fn right_center(size: f32) -> TextStyle<'static> {
     ("sans-serif", size)
         .into_font()
         .color(&BLACK)
         .pos(Pos::new(HPos::Right, VPos::Center))
 }
 
-fn left_center(size: f64) -> TextStyle<'static> {
+fn left_center(size: f32) -> TextStyle<'static> {
     ("sans-serif", size)
         .into_font()
         .color(&BLACK)
         .pos(Pos::new(HPos::Left, VPos::Center))
 }
 
-fn center_mid(size: f64) -> TextStyle<'static> {
+fn center_mid(size: f32) -> TextStyle<'static> {
     ("sans-serif", size)
         .into_font()
         .color(&BLACK)
@@ -171,11 +171,11 @@ fn pick_group<'a>(
 struct Row {
     label: String,
 
-    count: f64,
+    count: f32,
 
-    gr: f64,
+    gr: f32,
 
-    sig: f64,
+    sig: f32,
 }
 
 struct Block {
@@ -203,8 +203,8 @@ struct Prepared {
     n_term: usize,
 
     sectional: bool,
-    max_count: f64,
-    max_sig: f64,
+    max_count: f32,
+    max_sig: f32,
 }
 
 fn prepare(
@@ -269,8 +269,8 @@ fn prepare(
     }
 
     let n_term: usize = blocks.iter().map(|b| b.rows.len()).sum();
-    let mut max_count = 0.0f64;
-    let mut max_sig = 0.0f64;
+    let mut max_count = 0.0f32;
+    let mut max_sig = 0.0f32;
     for b in &blocks {
         for r in &b.rows {
             max_count = max_count.max(r.count);
@@ -289,7 +289,7 @@ fn prepare(
 fn to_row(t: &OraTerm) -> Row {
     Row {
         label: truncate_label(&t.name, LABEL_MAX_CHARS),
-        count: t.count as f64,
+        count: t.count as f32,
         gr: t.gene_ratio,
         sig: (-t.pvalue_adj.log10()).max(0.0),
     }
@@ -298,16 +298,16 @@ fn to_row(t: &OraTerm) -> Row {
 struct Plan {
     cys: Vec<i32>,
 
-    row_h: f64,
+    row_h: f32,
 
-    content_bot: f64,
+    content_bot: f32,
 
     headers: Vec<(i32, i32, String)>,
 
     zebra: bool,
 }
 
-fn plan_layout(p: &Prepared, y0: f64, y1: f64, min_row_h: f64) -> Plan {
+fn plan_layout(p: &Prepared, y0: f32, y1: f32, min_row_h: f32) -> Plan {
     if p.n_term == 0 {
         return Plan {
             cys: Vec::new(),
@@ -318,19 +318,19 @@ fn plan_layout(p: &Prepared, y0: f64, y1: f64, min_row_h: f64) -> Plan {
         };
     }
     if p.sectional {
-        let avail = (y1 - y0 - p.blocks.len() as f64 * HEADER_H as f64).max(0.0);
-        let row_h = (avail / p.n_term as f64).max(min_row_h);
+        let avail = (y1 - y0 - p.blocks.len() as f32 * HEADER_H as f32).max(0.0);
+        let row_h = (avail / p.n_term as f32).max(min_row_h);
         let mut cys = Vec::with_capacity(p.n_term);
         let mut headers = Vec::with_capacity(p.blocks.len());
         let mut topf = y0;
         for b in &p.blocks {
             let hy0 = topf.round() as i32;
-            topf += HEADER_H as f64;
+            topf += HEADER_H as f32;
             headers.push((hy0, topf.round() as i32, b.cat.clone()));
             for r in 0..b.rows.len() {
-                cys.push((topf + (r as f64 + 0.5) * row_h).round() as i32);
+                cys.push((topf + (r as f32 + 0.5) * row_h).round() as i32);
             }
-            topf += b.rows.len() as f64 * row_h;
+            topf += b.rows.len() as f32 * row_h;
         }
         Plan {
             cys,
@@ -340,11 +340,11 @@ fn plan_layout(p: &Prepared, y0: f64, y1: f64, min_row_h: f64) -> Plan {
             zebra: false,
         }
     } else {
-        let row_h = ((y1 - y0) / p.n_term as f64).clamp(min_row_h, MAX_ROW_H);
+        let row_h = ((y1 - y0) / p.n_term as f32).clamp(min_row_h, MAX_ROW_H);
         let cys: Vec<i32> = (0..p.n_term)
-            .map(|r| (y0 + (r as f64 + 0.5) * row_h).round() as i32)
+            .map(|r| (y0 + (r as f32 + 0.5) * row_h).round() as i32)
             .collect();
-        let content_bot = (y0 + p.n_term as f64 * row_h).min(y1);
+        let content_bot = (y0 + p.n_term as f32 * row_h).min(y1);
         Plan {
             cys,
             row_h,
@@ -376,9 +376,9 @@ fn label_zone_w<DB: DrawingBackend>(
 
 fn draw_colorbar<DB: DrawingBackend>(
     area: &DrawingArea<DB, Shift>,
-    vmin: f64,
-    vmax: f64,
-    cmap: fn(f64) -> RGBColor,
+    vmin: f32,
+    vmax: f32,
+    cmap: fn(f32) -> RGBColor,
 ) -> Result<(), DrawingAreaErrorKind<DB::ErrorType>> {
     let (w, h) = area.dim_in_pixel();
     let (w, h) = (w as i32, h as i32);
@@ -388,7 +388,7 @@ fn draw_colorbar<DB: DrawingBackend>(
     let y1 = (h - 4).max(y0 + 1);
     let n = 128;
     for i in 0..n {
-        let t = 1.0 - i as f64 / (n as f64 - 1.0);
+        let t = 1.0 - i as f32 / (n as f32 - 1.0);
         let ya = y0 + (y1 - y0) * i / n;
         let yb = y0 + (y1 - y0) * (i + 1) / n;
         area.draw(&Rectangle::new([(x0, ya), (x1, yb)], cmap(t).filled()))?;
@@ -403,7 +403,7 @@ fn draw_colorbar<DB: DrawingBackend>(
 
 fn draw_size_legend<DB: DrawingBackend>(
     area: &DrawingArea<DB, Shift>,
-    max_count: f64,
+    max_count: f32,
     max_r: i32,
 ) -> Result<(), DrawingAreaErrorKind<DB::ErrorType>> {
     let (w, _h) = area.dim_in_pixel();
@@ -412,8 +412,8 @@ fn draw_size_legend<DB: DrawingBackend>(
     let color = sig_colormap(0.85);
     let style = ("sans-serif", 10.0).into_font().color(&BLACK);
     area.draw_text("count", &style, (cx - 4, 4))?;
-    for (k, f) in [1.0f64, 0.8, 0.6, 0.4, 0.2].iter().enumerate() {
-        let r = (max_r as f64 * f.sqrt()).round() as i32;
+    for (k, f) in [1.0f32, 0.8, 0.6, 0.4, 0.2].iter().enumerate() {
+        let r = (max_r as f32 * f.sqrt()).round() as i32;
         let cy = 26 + k as i32 * step;
         area.draw(&Circle::new((cx, cy), r.max(1), color.filled()))?;
         let lbl = fmt_short(max_count * f);
@@ -424,9 +424,9 @@ fn draw_size_legend<DB: DrawingBackend>(
 
 fn draw_right_legend<DB: DrawingBackend>(
     area: &DrawingArea<DB, Shift>,
-    content_h: f64,
-    max_sig: f64,
-    max_count: f64,
+    content_h: f32,
+    max_sig: f32,
+    max_count: f32,
     max_r: i32,
 ) -> Result<(), DrawingAreaErrorKind<DB::ErrorType>> {
     let (_rw, rh) = area.dim_in_pixel();
@@ -469,8 +469,8 @@ fn render_dotplot<DB: DrawingBackend>(
     let label_w = label_zone_w(&body_area, &lb_style, &labels);
     let x0 = label_w;
     let x1 = (bw - 10).max(x0 + 1);
-    let y0 = 4.0f64;
-    let y1 = (bh - AXIS_H) as f64;
+    let y0 = 4.0f32;
+    let y1 = (bh - AXIS_H) as f32;
 
     let lay = plan_layout(p, y0, y1, 12.0);
     let row_h = lay.row_h;
@@ -486,18 +486,18 @@ fn render_dotplot<DB: DrawingBackend>(
         .blocks
         .iter()
         .flat_map(|b| b.rows.iter())
-        .fold(0.0f64, |m, r| m.max(r.gr))
+        .fold(0.0f32, |m, r| m.max(r.gr))
         .max(1e-9);
     let step = nice_step(max_gr, 5);
     let axis_max = (max_gr / step).ceil() * step;
-    let ax = |v: f64| x0 + ((x1 - x0) as f64 * (v / axis_max)).round() as i32;
+    let ax = |v: f32| x0 + ((x1 - x0) as f32 * (v / axis_max)).round() as i32;
     let n_ticks = (axis_max / step).round() as usize;
 
     if lay.zebra {
         for (i, cy) in lay.cys.iter().enumerate() {
             if i % 2 == 1 {
-                let ya = (*cy as f64 - row_h * 0.5).round() as i32;
-                let yb = (*cy as f64 + row_h * 0.5).round() as i32;
+                let ya = (*cy as f32 - row_h * 0.5).round() as i32;
+                let yb = (*cy as f32 + row_h * 0.5).round() as i32;
                 body_area.draw(&Rectangle::new(
                     [(0, ya.max(y0 as i32)), (x1, yb.min(y1 as i32))],
                     BAND.filled(),
@@ -509,7 +509,7 @@ fn render_dotplot<DB: DrawingBackend>(
     let grid_style = RGBColor(0xea, 0xea, 0xea).stroke_width(1);
     let grid_bot = lay.content_bot.round() as i32;
     for i in 0..=n_ticks {
-        let px = ax(i as f64 * step);
+        let px = ax(i as f32 * step);
         body_area.draw(&PathElement::new(
             vec![(px, y0 as i32), (px, grid_bot)],
             grid_style,
@@ -537,7 +537,7 @@ fn render_dotplot<DB: DrawingBackend>(
             i += 1;
             body_area.draw_text(&r.label, &term_style, (x0 - 6, cy))?;
             let t = (r.sig / p.max_sig).clamp(0.0, 1.0);
-            let rr = ((max_r as f64) * (r.count / p.max_count).sqrt())
+            let rr = ((max_r as f32) * (r.count / p.max_count).sqrt())
                 .round()
                 .max(1.0) as i32;
             let cx = ax(r.gr);
@@ -558,9 +558,9 @@ fn render_dotplot<DB: DrawingBackend>(
 
     let ax_style = center_mid(11.0);
     for i in 0..=n_ticks {
-        let px = ax(i as f64 * step);
+        let px = ax(i as f32 * step);
         body_area.draw_text(
-            &fmt_tick(i as f64 * step, step),
+            &fmt_tick(i as f32 * step, step),
             &ax_style,
             (px, axis_y + 6),
         )?;
@@ -668,8 +668,8 @@ fn render_barplot<DB: DrawingBackend>(
     let label_w = label_zone_w(&root, &lb_style, &labels);
     let x0 = label_w;
     let x1 = (w - 14).max(x0 + 1);
-    let y0 = 4.0f64;
-    let y1 = (h - AXIS_H) as f64;
+    let y0 = 4.0f32;
+    let y1 = (h - AXIS_H) as f32;
 
     let lay = plan_layout(p, y0, y1, 14.0);
     let row_h = lay.row_h;
@@ -683,18 +683,18 @@ fn render_barplot<DB: DrawingBackend>(
         .blocks
         .iter()
         .flat_map(|b| b.rows.iter())
-        .fold(0.0f64, |m, r| m.max(r.count))
+        .fold(0.0f32, |m, r| m.max(r.count))
         .max(1.0);
     let step = nice_step(max_v, 5);
     let axis_max = (max_v / step).ceil() * step;
-    let ax = |v: f64| x0 + ((x1 - x0) as f64 * (v / axis_max)).round() as i32;
+    let ax = |v: f32| x0 + ((x1 - x0) as f32 * (v / axis_max)).round() as i32;
     let n_ticks = (axis_max / step).round() as usize;
 
     if lay.zebra {
         for (i, cy) in lay.cys.iter().enumerate() {
             if i % 2 == 1 {
-                let ya = (*cy as f64 - row_h * 0.5).round() as i32;
-                let yb = (*cy as f64 + row_h * 0.5).round() as i32;
+                let ya = (*cy as f32 - row_h * 0.5).round() as i32;
+                let yb = (*cy as f32 + row_h * 0.5).round() as i32;
                 root.draw(&Rectangle::new(
                     [(0, ya.max(0)), (x1, yb.min(h))],
                     BAND.filled(),
@@ -706,7 +706,7 @@ fn render_barplot<DB: DrawingBackend>(
     let grid_style = RGBColor(0xea, 0xea, 0xea).stroke_width(1);
     let grid_bot = lay.content_bot.round() as i32;
     for i in 0..=n_ticks {
-        let px = ax(i as f64 * step);
+        let px = ax(i as f32 * step);
         root.draw(&PathElement::new(
             vec![(px, y0 as i32), (px, grid_bot)],
             grid_style,
@@ -718,9 +718,9 @@ fn render_barplot<DB: DrawingBackend>(
     ))?;
     let ax_style = center_mid(11.0);
     for i in 0..=n_ticks {
-        let px = ax(i as f64 * step);
+        let px = ax(i as f32 * step);
         root.draw_text(
-            &fmt_tick(i as f64 * step, step),
+            &fmt_tick(i as f32 * step, step),
             &ax_style,
             (px, axis_y + 6),
         )?;
@@ -749,8 +749,8 @@ fn render_barplot<DB: DrawingBackend>(
             if r.count > 0.0 {
                 let px = ax(r.count).max(x0);
                 let t = (r.sig / p.max_sig).clamp(0.0, 1.0);
-                let y_top = (cy as f64 - row_h * 0.5).round() as i32;
-                let y_bot = (cy as f64 + row_h * 0.5).round() as i32 - 1;
+                let y_top = (cy as f32 - row_h * 0.5).round() as i32;
+                let y_bot = (cy as f32 + row_h * 0.5).round() as i32 - 1;
                 root.draw(&Rectangle::new(
                     [(x0, y_top), (px, y_bot.max(y_top))],
                     sig_colormap(t).filled(),

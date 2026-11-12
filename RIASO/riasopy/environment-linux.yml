@@ -16,6 +16,12 @@ channels:
 dependencies:
   - python=3.11
   - numpy=2.4.6
+  # Pin the pthreads OpenBLAS variant: the Rust code links `openblasp` (libopenblasp.so),
+  # and the default openmp variant only ships libopenblaso.so, which fails the link.
+  - libblas=*=*_openblas
+  - libcblas=*=*_openblas
+  - liblapack=*=*_openblas
+  - libopenblas=*=pthreads*
   - maturin=1.14.1
   - pkg-config
   - gcc

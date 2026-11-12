@@ -37,9 +37,9 @@ use crate::tools::integrate;
 
 pub const SAMPLE: &str = "Combined";
 
-const MIN_FOLD_CHANGE: f64 = 1.0;
-const MIN_IN_GROUP_FRACTION: f64 = 0.25;
-const MAX_OUT_GROUP_FRACTION: f64 = 0.5;
+const MIN_FOLD_CHANGE: f32 = 1.0;
+const MIN_IN_GROUP_FRACTION: f32 = 0.25;
+const MAX_OUT_GROUP_FRACTION: f32 = 0.5;
 
 pub(crate) const QC_METRICS: [&str; 3] = ["total_counts", "n_genes_by_counts", "pct_counts_mt"];
 
@@ -62,7 +62,7 @@ const MARKER_KEYS: [&str; 7] = [
     "pct_rest",
 ];
 
-pub(crate) const ORA_DBS: [(&str, &str, &str, f64, f64); 3] = [
+pub(crate) const ORA_DBS: [(&str, &str, &str, f32, f32); 3] = [
     ("GO", "go", "Pathways_GO_Top10.png", 0.05, 0.2),
     ("KEGG", "kegg", "Pathways_KEGG.png", 0.05, 0.2),
     ("Reactome", "reactome", "Pathways_Reactome.png", 1.0, 1.0),
@@ -80,7 +80,7 @@ pub fn ref_name_of(ref_path: &str) -> Result<String> {
 fn done(name: &str, t: Instant) {
     eprintln!(
         "[riaso] ✓ {name} completed ({:.1}s)",
-        t.elapsed().as_secs_f64()
+        t.elapsed().as_secs_f32()
     );
 }
 
@@ -88,7 +88,6 @@ pub fn run(config: &Config) -> Result<()> {
     if config.io.inputs.is_empty() {
         bail!("at least one input file or directory must be given (-I/--input)");
     }
-    // Directory inputs are expanded into file lists first; everything downstream works on files.
     let expanded = expand_inputs(&config.io.inputs)?;
     let mut cfg = config.clone();
     cfg.io.inputs = expanded;
@@ -679,14 +678,6 @@ fn input_ext(path: &str) -> String {
         .unwrap_or_default()
 }
 
-/// Expand **directory** entries in `-I` into the files they contain (**top level only**).
-///
-/// - Only files with a `.gef` / `.gem` / `.h5ad` extension are kept; anything else
-///   (readme files, hidden files, sub-directories) is ignored;
-/// - files inside one directory are sorted by **file name** so batch order is stable
-///   and reproducible; multiple directories are expanded in command-line order;
-/// - a directory with no supported file is an error instead of being skipped silently;
-/// - non-directory entries are passed through unchanged (extension checks happen later).
 fn expand_inputs(inputs: &[String]) -> Result<Vec<String>> {
     let mut out = Vec::with_capacity(inputs.len());
     for raw in inputs {
@@ -832,8 +823,8 @@ struct LoadedDb<'a> {
     display: &'a str,
     key: &'a str,
     png: &'a str,
-    def_p: f64,
-    def_q: f64,
+    def_p: f32,
+    def_q: f32,
     db: GeneSetDb,
 }
 
@@ -1056,22 +1047,22 @@ fn p(dir: &Path, name: &str) -> PathBuf {
     dir.join(name)
 }
 
-pub(crate) fn obs_f64(sd: &SoData, col: &str) -> Result<Vec<f64>> {
+pub(crate) fn obs_f32(sd: &SoData, col: &str) -> Result<Vec<f32>> {
     let obs = sd.obs.as_ref().ok_or_else(|| anyhow!("obs is empty"))?;
     let s = obs
         .column(col)
         .map_err(|e| anyhow!("obs is missing column {col}: {e}"))?;
-    if let Ok(ca) = s.f64() {
+    if let Ok(ca) = s.f32() {
         return Ok((0..ca.len())
-            .map(|i| ca.get(i).unwrap_or(f64::NAN))
+            .map(|i| ca.get(i).unwrap_or(f32::NAN))
             .collect());
     }
     if let Ok(ca) = s.i64() {
         return Ok((0..ca.len())
-            .map(|i| ca.get(i).map(|v| v as f64).unwrap_or(f64::NAN))
+            .map(|i| ca.get(i).map(|v| v as f32).unwrap_or(f32::NAN))
             .collect());
     }
-    Err(anyhow!("obs[{col}] is neither f64 nor Int64"))
+    Err(anyhow!("obs[{col}] is neither f32 nor Int64"))
 }
 
 fn obs_i64(sd: &SoData, col: &str) -> Result<Vec<i64>> {
@@ -1098,12 +1089,12 @@ fn obs_str(sd: &SoData, col: &str) -> Result<Vec<String>> {
 
 pub(crate) struct ClusterRows {
     pub(crate) genes: Vec<String>,
-    pub(crate) scores: Vec<f64>,
-    pub(crate) pvalues: Vec<f64>,
-    pub(crate) pvalues_adj: Vec<f64>,
-    pub(crate) log2fc: Vec<f64>,
-    pub(crate) pct: Vec<f64>,
-    pub(crate) pct_rest: Vec<f64>,
+    pub(crate) scores: Vec<f32>,
+    pub(crate) pvalues: Vec<f32>,
+    pub(crate) pvalues_adj: Vec<f32>,
+    pub(crate) log2fc: Vec<f32>,
+    pub(crate) pct: Vec<f32>,
+    pub(crate) pct_rest: Vec<f32>,
 }
 
 impl ClusterRows {
@@ -1131,7 +1122,7 @@ impl ClusterRows {
 
 enum ClusterField<'a> {
     Str(&'a [String]),
-    F64(&'a [f64]),
+    F64(&'a [f32]),
 }
 
 fn write_stereo_marker_wide(
@@ -1177,7 +1168,7 @@ fn write_stereo_marker_wide(
                 .partial_cmp(&rows.log2fc[a])
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
-        let reorder = |v: &mut Vec<f64>| {
+        let reorder = |v: &mut Vec<f32>| {
             let old = std::mem::take(v);
             v.extend(idx.iter().map(|&i| old[i]));
         };
@@ -1215,7 +1206,7 @@ fn write_stereo_marker_wide(
                     Column::new(col_name.into(), padded)
                 }
                 ClusterField::F64(v) => {
-                    let padded: Vec<Option<f64>> = (0..n_rows).map(|i| v.get(i).copied()).collect();
+                    let padded: Vec<Option<f32>> = (0..n_rows).map(|i| v.get(i).copied()).collect();
                     Column::new(col_name.into(), padded)
                 }
             };
@@ -1231,11 +1222,11 @@ fn write_terms_tsv(path: &Path, terms: &[OraTerm]) -> Result<()> {
     let ids: Vec<String> = terms.iter().map(|t| t.id.clone()).collect();
     let names: Vec<String> = terms.iter().map(|t| t.name.clone()).collect();
     let cats: Vec<Option<String>> = terms.iter().map(|t| t.category.clone()).collect();
-    let pv: Vec<f64> = terms.iter().map(|t| t.pvalue).collect();
-    let padj: Vec<f64> = terms.iter().map(|t| t.pvalue_adj).collect();
+    let pv: Vec<f32> = terms.iter().map(|t| t.pvalue).collect();
+    let padj: Vec<f32> = terms.iter().map(|t| t.pvalue_adj).collect();
     let counts: Vec<u64> = terms.iter().map(|t| t.count as u64).collect();
-    let gratio: Vec<f64> = terms.iter().map(|t| t.gene_ratio).collect();
-    let bratio: Vec<f64> = terms.iter().map(|t| t.bg_ratio).collect();
+    let gratio: Vec<f32> = terms.iter().map(|t| t.gene_ratio).collect();
+    let bratio: Vec<f32> = terms.iter().map(|t| t.bg_ratio).collect();
     let overlap: Vec<String> = terms.iter().map(|t| t.overlap.join("/")).collect();
 
     let columns = vec![
@@ -1274,9 +1265,9 @@ fn write_cell_metadata(
     cluster_key: &str,
 ) -> Result<()> {
     let cell = obs_str(sd, "cell")?;
-    let total_counts = obs_f64(sd, "total_counts")?;
+    let total_counts = obs_f32(sd, "total_counts")?;
     let n_genes = obs_i64(sd, "n_genes_by_counts")?;
-    let pct_mt = obs_f64(sd, "pct_counts_mt")?;
+    let pct_mt = obs_f32(sd, "pct_counts_mt")?;
     let clusters: Vec<i64> = obs_labels(sd, cluster_key)?
         .iter()
         .map(|x| display_of.get(x).copied().unwrap_or(*x))

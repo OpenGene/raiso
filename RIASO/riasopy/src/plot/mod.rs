@@ -59,7 +59,7 @@ pub fn plot_qc_png(
     Ok(std::fs::read(&path)?)
 }
 
-fn extract_series(data: &SoData, metrics: &[String]) -> anyhow::Result<Vec<(String, Vec<f64>)>> {
+fn extract_series(data: &SoData, metrics: &[String]) -> anyhow::Result<Vec<(String, Vec<f32>)>> {
     let obs = data
         .obs
         .as_ref()
@@ -72,7 +72,7 @@ fn extract_series(data: &SoData, metrics: &[String]) -> anyhow::Result<Vec<(Stri
 
 fn render_qc<DB: DrawingBackend>(
     root: DrawingArea<DB, Shift>,
-    series: &[(String, Vec<f64>)],
+    series: &[(String, Vec<f32>)],
     kind: PlotKind,
     title: Option<&str>,
 ) -> Result<(), DrawingAreaErrorKind<DB::ErrorType>> {
@@ -106,9 +106,9 @@ pub fn plot_spatial_scatter(
     color_by: &str,
     title: Option<&str>,
     size: (u32, u32),
-    vmin: Option<f64>,
-    vmax: Option<f64>,
-    dot_size: Option<f64>,
+    vmin: Option<f32>,
+    vmax: Option<f32>,
+    dot_size: Option<f32>,
 ) -> anyhow::Result<()> {
     let vals = extract_single(data, color_by)?;
     let (xs, ys) = spatial::extract_position(data)?;
@@ -123,9 +123,9 @@ pub fn plot_spatial_scatter_png(
     color_by: &str,
     title: Option<&str>,
     size: (u32, u32),
-    vmin: Option<f64>,
-    vmax: Option<f64>,
-    dot_size: Option<f64>,
+    vmin: Option<f32>,
+    vmax: Option<f32>,
+    dot_size: Option<f32>,
 ) -> anyhow::Result<Vec<u8>> {
     let vals = extract_single(data, color_by)?;
     let (xs, ys) = spatial::extract_position(data)?;
@@ -141,7 +141,7 @@ pub fn plot_spatial_scatter_png(
     Ok(std::fs::read(&path)?)
 }
 
-fn extract_single(data: &SoData, color_by: &str) -> anyhow::Result<Vec<f64>> {
+fn extract_single(data: &SoData, color_by: &str) -> anyhow::Result<Vec<f32>> {
     let obs = data
         .obs
         .as_ref()
@@ -153,13 +153,13 @@ fn extract_single(data: &SoData, color_by: &str) -> anyhow::Result<Vec<f64>> {
 fn render_spatial<DB: DrawingBackend>(
     root: DrawingArea<DB, Shift>,
     name: &str,
-    xs: &[f64],
-    ys: &[f64],
-    vals: &[f64],
+    xs: &[f32],
+    ys: &[f32],
+    vals: &[f32],
     title: Option<&str>,
-    vmin: Option<f64>,
-    vmax: Option<f64>,
-    dot_size: Option<f64>,
+    vmin: Option<f32>,
+    vmax: Option<f32>,
+    dot_size: Option<f32>,
 ) -> Result<(), DrawingAreaErrorKind<DB::ErrorType>> {
     root.fill(&WHITE)?;
     let root = match title {
@@ -191,7 +191,7 @@ pub fn batch_count(data: &SoData) -> anyhow::Result<usize> {
 fn extract_batch_series(
     data: &SoData,
     color_by: &str,
-) -> anyhow::Result<Vec<(String, Vec<f64>, Vec<f64>, Vec<f64>)>> {
+) -> anyhow::Result<Vec<(String, Vec<f32>, Vec<f32>, Vec<f32>)>> {
     let obs = data
         .obs
         .as_ref()
@@ -218,7 +218,7 @@ fn extract_batch_series(
     uniq.sort_unstable();
     uniq.dedup();
 
-    let out: Vec<(String, Vec<f64>, Vec<f64>, Vec<f64>)> = uniq
+    let out: Vec<(String, Vec<f32>, Vec<f32>, Vec<f32>)> = uniq
         .par_iter()
         .map(|&b| {
             let mut bxs = Vec::new();
@@ -250,9 +250,9 @@ pub fn plot_batch_spatial_scatter(
     ncols: usize,
     title: Option<&str>,
     size: (u32, u32),
-    vmin: Option<f64>,
-    vmax: Option<f64>,
-    dot_size: Option<f64>,
+    vmin: Option<f32>,
+    vmax: Option<f32>,
+    dot_size: Option<f32>,
 ) -> anyhow::Result<()> {
     let series = extract_batch_series(data, color_by)?;
     let root = BitMapBackend::new(path, size).into_drawing_area();
@@ -267,9 +267,9 @@ pub fn plot_batch_spatial_scatter_png(
     ncols: usize,
     title: Option<&str>,
     size: (u32, u32),
-    vmin: Option<f64>,
-    vmax: Option<f64>,
-    dot_size: Option<f64>,
+    vmin: Option<f32>,
+    vmax: Option<f32>,
+    dot_size: Option<f32>,
 ) -> anyhow::Result<Vec<u8>> {
     let series = extract_batch_series(data, color_by)?;
 
@@ -287,12 +287,12 @@ pub fn plot_batch_spatial_scatter_png(
 #[allow(clippy::too_many_arguments)]
 fn render_ms_spatial<DB: DrawingBackend>(
     root: DrawingArea<DB, Shift>,
-    series: &[(String, Vec<f64>, Vec<f64>, Vec<f64>)],
+    series: &[(String, Vec<f32>, Vec<f32>, Vec<f32>)],
     ncols: usize,
     title: Option<&str>,
-    vmin: Option<f64>,
-    vmax: Option<f64>,
-    dot_size: Option<f64>,
+    vmin: Option<f32>,
+    vmax: Option<f32>,
+    dot_size: Option<f32>,
 ) -> Result<(), DrawingAreaErrorKind<DB::ErrorType>> {
     root.fill(&WHITE)?;
     let root = match title {
@@ -308,7 +308,7 @@ fn render_ms_spatial<DB: DrawingBackend>(
     let ncols = ncols.min(n).max(1);
     let nrows = n.div_ceil(ncols);
 
-    let (mut glo, mut ghi) = (f64::INFINITY, f64::NEG_INFINITY);
+    let (mut glo, mut ghi) = (f32::INFINITY, f32::NEG_INFINITY);
     for (_, _, _, vals) in series {
         for &v in vals {
             glo = glo.min(v);

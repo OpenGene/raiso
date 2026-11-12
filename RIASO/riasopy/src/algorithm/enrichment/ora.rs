@@ -12,13 +12,13 @@ use super::bh_adjust;
 pub struct OraParams {
     pub category: Option<String>,
 
-    pub gene_pvalue_cutoff: f64,
+    pub gene_pvalue_cutoff: f32,
 
-    pub gene_log2fc_cutoff: f64,
+    pub gene_log2fc_cutoff: f32,
 
-    pub pvalue_cutoff: f64,
+    pub pvalue_cutoff: f32,
 
-    pub qvalue_cutoff: f64,
+    pub qvalue_cutoff: f32,
 
     pub min_gene_count: usize,
 
@@ -121,7 +121,7 @@ fn ora_one_group(
     db: &GeneSetDb,
     background: &HashSet<String>,
     candidates: &[(&GeneSet, usize)],
-    lf: &[f64],
+    lf: &[f32],
     params: &OraParams,
 ) -> OraGroupResult {
     let empty = OraGroupResult {
@@ -150,7 +150,7 @@ fn ora_one_group(
 
     let input_set: HashSet<&str> = input.iter().map(|s| s.as_str()).collect();
 
-    let (mut ps, mut ks): (Vec<f64>, Vec<usize>) = (
+    let (mut ps, mut ks): (Vec<f32>, Vec<usize>) = (
         Vec::with_capacity(candidates.len()),
         Vec::with_capacity(candidates.len()),
     );
@@ -194,8 +194,8 @@ fn ora_one_group(
             pvalue_adj: padj,
             count: ks[i],
             overlap,
-            gene_ratio: ks[i] as f64 / n as f64,
-            bg_ratio: k_bg as f64 / n_bg as f64,
+            gene_ratio: ks[i] as f32 / n as f32,
+            bg_ratio: k_bg as f32 / n_bg as f32,
         });
     }
 
@@ -218,15 +218,15 @@ fn intersect_size(a: &HashSet<String>, b: &HashSet<String>) -> usize {
     small.iter().filter(|x| big.contains(*x)).count()
 }
 
-fn ln_factorials(max: usize) -> Vec<f64> {
-    let mut v = vec![0.0f64; max + 1];
+fn ln_factorials(max: usize) -> Vec<f32> {
+    let mut v = vec![0.0f32; max + 1];
     for i in 1..=max {
-        v[i] = v[i - 1] + (i as f64).ln();
+        v[i] = v[i - 1] + (i as f32).ln();
     }
     v
 }
 
-fn hypergeom_tail(n_total: usize, k_total: usize, n_draw: usize, k_obs: usize, lf: &[f64]) -> f64 {
+fn hypergeom_tail(n_total: usize, k_total: usize, n_draw: usize, k_obs: usize, lf: &[f32]) -> f32 {
     if k_obs == 0 {
         return 1.0;
     }
@@ -236,14 +236,14 @@ fn hypergeom_tail(n_total: usize, k_total: usize, n_draw: usize, k_obs: usize, l
     }
 
     let kmin = k_total.saturating_add(n_draw).saturating_sub(n_total);
-    let ln_c = |a: usize, b: usize| -> f64 {
+    let ln_c = |a: usize, b: usize| -> f32 {
         if b == 0 || b == a {
             0.0
         } else {
             lf[a] - lf[b] - lf[a - b]
         }
     };
-    let mut p = 0.0f64;
+    let mut p = 0.0f32;
     for x in kmin..=kmax {
         let lnpmf = ln_c(k_total, x) + ln_c(n_total - k_total, n_draw - x) - ln_c(n_total, n_draw);
         let mass = lnpmf.exp();

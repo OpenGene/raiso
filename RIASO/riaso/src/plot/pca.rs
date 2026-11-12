@@ -23,7 +23,7 @@ fn extract_pca(data: &SoData) -> anyhow::Result<&PcaResult> {
         .ok_or_else(|| anyhow!("SoData.result.pca has no PcaResult; call run_pca first"))
 }
 
-fn trans_y(v: f64, log: bool) -> f64 {
+fn trans_y(v: f32, log: bool) -> f32 {
     if log {
         v.max(1e-300).log10()
     } else {
@@ -31,9 +31,9 @@ fn trans_y(v: f64, log: bool) -> f64 {
     }
 }
 
-fn fmt_y(v: f64, log: bool) -> String {
+fn fmt_y(v: f32, log: bool) -> String {
     if log {
-        let raw = 10f64.powf(v);
+        let raw = 10f32.powf(v);
         if raw >= 0.01 {
             format!("{raw:.3}")
         } else {
@@ -85,7 +85,7 @@ pub fn plot_pca_variance_ratio_png(
 
 fn render_pca_variance_ratio<DB: DrawingBackend>(
     root: DrawingArea<DB, Shift>,
-    ratio: &[f64],
+    ratio: &[f32],
     n_pcs: usize,
     cum: bool,
     log: bool,
@@ -98,17 +98,17 @@ fn render_pca_variance_ratio<DB: DrawingBackend>(
     }
     let n = n_pcs.min(k);
 
-    let xs: Vec<f64> = (1..=n).map(|i| i as f64).collect();
-    let vals: Vec<f64> = ratio[..n].to_vec();
-    let mut cum_vals: Vec<f64> = Vec::with_capacity(n);
+    let xs: Vec<f32> = (1..=n).map(|i| i as f32).collect();
+    let vals: Vec<f32> = ratio[..n].to_vec();
+    let mut cum_vals: Vec<f32> = Vec::with_capacity(n);
     let mut acc = 0.0;
     for &v in &vals {
         acc += v;
         cum_vals.push(acc);
     }
 
-    let mut ylo = f64::INFINITY;
-    let mut yhi = f64::NEG_INFINITY;
+    let mut ylo = f32::INFINITY;
+    let mut yhi = f32::NEG_INFINITY;
     for &v in vals.iter().chain(cum_vals.iter()) {
         let t = trans_y(v, log);
         ylo = ylo.min(t);
@@ -139,22 +139,22 @@ fn render_pca_variance_ratio<DB: DrawingBackend>(
         .margin(10)
         .x_label_area_size(40)
         .y_label_area_size(60)
-        .build_cartesian_2d(0.5..(n as f64 + 0.5), ylo..yhi)?;
+        .build_cartesian_2d(0.5..(n as f32 + 0.5), ylo..yhi)?;
 
     chart
         .configure_mesh()
         .light_line_style(RGBColor(0xdd, 0xdd, 0xdd).stroke_width(1))
         .x_label_style(("sans-serif", 13.0).into_font())
         .y_label_style(("sans-serif", 13.0).into_font())
-        .x_label_formatter(&|&x: &f64| {
+        .x_label_formatter(&|&x: &f32| {
             let r = x.round();
-            if (x - r).abs() < 1e-9 && r >= 1.0 && r <= n as f64 {
+            if (x - r).abs() < 1e-9 && r >= 1.0 && r <= n as f32 {
                 format!("{r:.0}")
             } else {
                 String::new()
             }
         })
-        .y_label_formatter(&|&v: &f64| fmt_y(v, log))
+        .y_label_formatter(&|&v: &f32| fmt_y(v, log))
         .x_desc("Principal Component")
         .y_desc(if log {
             "log10 Variance ratio"
@@ -187,8 +187,8 @@ fn render_pca_variance_ratio<DB: DrawingBackend>(
     let (ppw_px, pph_px) = chart.plotting_area().dim_in_pixel();
     if pph_px > 0 && ppw_px > 0 {
         let axis_span = yhi - ylo;
-        let px2data = axis_span / pph_px as f64;
-        let x2data = n as f64 / ppw_px as f64;
+        let px2data = axis_span / pph_px as f32;
+        let x2data = n as f32 / ppw_px as f32;
 
         let clear_px = if cum { 7.0 } else { 2.0 };
         let anchor_y0 = (10.0 + clear_px) * px2data;
@@ -202,7 +202,7 @@ fn render_pca_variance_ratio<DB: DrawingBackend>(
             let lab = format!("{pct:.1}%");
             let top = trans_y(v, log);
 
-            let half_w_data = (lab.len() as f64 * 5.6 * 0.5) * x2data;
+            let half_w_data = (lab.len() as f32 * 5.6 * 0.5) * x2data;
             let x_lab = xi - half_w_data;
             let y_lab = top + anchor_y0;
             chart.draw_series(std::iter::once(Text::new(lab, (x_lab, y_lab), &style)))?;
@@ -219,7 +219,7 @@ pub fn plot_pca(
     path: &str,
     color: Option<&str>,
     components: (usize, usize),
-    dot_size: Option<f64>,
+    dot_size: Option<f32>,
     size: (u32, u32),
 ) -> anyhow::Result<()> {
     let pca = extract_pca(data)?;
@@ -235,7 +235,7 @@ pub fn plot_pca_png(
     data: &SoData,
     color: Option<&str>,
     components: (usize, usize),
-    dot_size: Option<f64>,
+    dot_size: Option<f32>,
     size: (u32, u32),
 ) -> anyhow::Result<Vec<u8>> {
     let pca = extract_pca(data)?;
@@ -255,7 +255,7 @@ pub fn plot_pca_png(
 fn proj_columns(
     pca: &PcaResult,
     components: (usize, usize),
-) -> anyhow::Result<(Vec<f64>, Vec<f64>)> {
+) -> anyhow::Result<(Vec<f32>, Vec<f32>)> {
     let k = pca.projected.ncols();
     let (cx, cy) = components;
     if cx >= k || cy >= k {
@@ -291,7 +291,7 @@ fn resolve_color_labels(data: &SoData, color: Option<&str>) -> anyhow::Result<Op
     }
 }
 
-fn data_extent(x: &[f64], y: &[f64]) -> (f64, f64, f64, f64) {
+fn data_extent(x: &[f32], y: &[f32]) -> (f32, f32, f32, f32) {
     let (mut x0, mut x1, mut y0, mut y1) = par_bbox_opt(x, y, true);
     if !x0.is_finite() {
         return (0.0, 1.0, 0.0, 1.0);
@@ -310,11 +310,11 @@ fn data_extent(x: &[f64], y: &[f64]) -> (f64, f64, f64, f64) {
 #[allow(clippy::too_many_arguments)]
 fn render_pca_scatter<DB: DrawingBackend>(
     root: DrawingArea<DB, Shift>,
-    x: &[f64],
-    y: &[f64],
+    x: &[f32],
+    y: &[f32],
     labels: Option<&[i64]>,
     components: (usize, usize),
-    dot_size: Option<f64>,
+    dot_size: Option<f32>,
 ) -> Result<(), DrawingAreaErrorKind<DB::ErrorType>> {
     root.fill(&WHITE)?;
     if x.is_empty() {
@@ -360,9 +360,9 @@ fn render_pca_scatter<DB: DrawingBackend>(
 
     let (pw_px, ph_px) = chart.plotting_area().dim_in_pixel();
     let dot_size =
-        dot_size.unwrap_or_else(|| default_dot_size_px(x.len(), (pw_px as f64) * (ph_px as f64)));
-    let hx = dot_size * 0.5 * (x1 - x0) / (pw_px as f64).max(1.0);
-    let hy = dot_size * 0.5 * (y1 - y0) / (ph_px as f64).max(1.0);
+        dot_size.unwrap_or_else(|| default_dot_size_px(x.len(), (pw_px as f32) * (ph_px as f32)));
+    let hx = dot_size * 0.5 * (x1 - x0) / (pw_px as f32).max(1.0);
+    let hy = dot_size * 0.5 * (y1 - y0) / (ph_px as f32).max(1.0);
 
     match labels {
         Some(labels) => {
@@ -374,7 +374,7 @@ fn render_pca_scatter<DB: DrawingBackend>(
             let color_of: std::collections::HashMap<i64, RGBColor> =
                 sorted.iter().copied().zip(colors.iter().copied()).collect();
 
-            let pts: Vec<(f64, f64, RGBColor)> = x
+            let pts: Vec<(f32, f32, RGBColor)> = x
                 .par_iter()
                 .zip(y.par_iter())
                 .zip(labels.par_iter())
@@ -463,7 +463,7 @@ fn loading_gene_names(data: &SoData, pca: &PcaResult) -> Vec<String> {
 struct LoadingSeries {
     pc_no: usize,
 
-    bars: Vec<(String, f64)>,
+    bars: Vec<(String, f32)>,
 }
 
 fn loadings_series(
@@ -581,7 +581,7 @@ fn loading_panel<DB: DrawingBackend>(
 
     let (label_area, plot_area) = rest.split_horizontally(label_w);
 
-    let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
+    let (mut lo, mut hi) = (f32::INFINITY, f32::NEG_INFINITY);
     for (_, v) in &comp.bars {
         let v = *v;
         if !v.is_finite() {
@@ -609,7 +609,7 @@ fn loading_panel<DB: DrawingBackend>(
         .margin(0)
         .x_label_area_size(30)
         .y_label_area_size(0)
-        .build_cartesian_2d(x_lo..x_hi, 0.0..n as f64)?;
+        .build_cartesian_2d(x_lo..x_hi, 0.0..n as f32)?;
 
     chart
         .configure_mesh()
@@ -626,17 +626,17 @@ fn loading_panel<DB: DrawingBackend>(
 
     for (i, (_, v)) in comp.bars.iter().enumerate() {
         let v = *v;
-        let y_top = n as f64 - i as f64;
+        let y_top = n as f32 - i as f32;
         let y_bot = y_top - 1.0;
         let color = if v >= 0.0 { POS_BLUE } else { NEG_RED };
         if v != 0.0 {
             chart.draw_series(std::iter::once(Rectangle::new(
-                [(0.0_f64, y_top), (v, y_bot)],
+                [(0.0_f32, y_top), (v, y_bot)],
                 color.filled(),
             )))?;
         }
 
-        let cy = (((i as f64 + 0.5) * pph as f64) / n as f64) as i32;
+        let cy = (((i as f32 + 0.5) * pph as f32) / n as f32) as i32;
         let style = ("sans-serif", 11.0).into_font().color(&BLACK);
         let name = &comp.bars[i].0;
         let tw = name.len() as i32 * 7;
@@ -645,7 +645,7 @@ fn loading_panel<DB: DrawingBackend>(
 
     if lo <= 0.0 && 0.0 <= hi {
         chart.draw_series(std::iter::once(PathElement::new(
-            vec![(0.0_f64, n as f64), (0.0_f64, 0.0_f64)],
+            vec![(0.0_f32, n as f32), (0.0_f32, 0.0_f32)],
             RGBColor(0x40, 0x40, 0x40).stroke_width(1),
         )))?;
     }

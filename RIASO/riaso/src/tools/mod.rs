@@ -71,7 +71,7 @@ fn integrate_impl(samples: &[SoData], var_type: &str, save_counts_layer: bool) -
     let mut total_n_obs = 0;
     let mut cell_names: Vec<String> = Vec::new();
     let mut batch_ids: Vec<i64> = Vec::new();
-    let mut positions: Vec<Array2<f64>> = Vec::new();
+    let mut positions: Vec<Array2<f32>> = Vec::new();
 
     let mut offsets: Vec<usize> = Vec::new();
     let mut cols: Vec<usize> = Vec::new();
@@ -94,27 +94,27 @@ fn integrate_impl(samples: &[SoData], var_type: &str, save_counts_layer: bool) -
     }
 
     const NCOLS: usize = 3;
-    const GAP: f64 = 100.0;
+    const GAP: f32 = 100.0;
 
     let (cell_w, cell_h) = {
-        let (mut cw, mut ch) = (0.0f64, 0.0f64);
+        let (mut cw, mut ch) = (0.0f32, 0.0f32);
         for s in samples {
             if let Some(pos) = &s.position {
                 if pos.nrows() == 0 {
                     continue;
                 }
-                let min_x = pos.column(0).iter().copied().fold(f64::INFINITY, f64::min);
+                let min_x = pos.column(0).iter().copied().fold(f32::INFINITY, f32::min);
                 let max_x = pos
                     .column(0)
                     .iter()
                     .copied()
-                    .fold(f64::NEG_INFINITY, f64::max);
-                let min_y = pos.column(1).iter().copied().fold(f64::INFINITY, f64::min);
+                    .fold(f32::NEG_INFINITY, f32::max);
+                let min_y = pos.column(1).iter().copied().fold(f32::INFINITY, f32::min);
                 let max_y = pos
                     .column(1)
                     .iter()
                     .copied()
-                    .fold(f64::NEG_INFINITY, f64::max);
+                    .fold(f32::NEG_INFINITY, f32::max);
                 cw = cw.max(max_x - min_x);
                 ch = ch.max(max_y - min_y);
             }
@@ -165,21 +165,21 @@ fn integrate_impl(samples: &[SoData], var_type: &str, save_counts_layer: bool) -
         let pos_data = sample
             .position
             .clone()
-            .unwrap_or_else(|| Array2::<f64>::zeros((n_obs, 2)));
+            .unwrap_or_else(|| Array2::<f32>::zeros((n_obs, 2)));
         let min_x = pos_data
             .column(0)
             .iter()
             .copied()
-            .fold(f64::INFINITY, f64::min);
+            .fold(f32::INFINITY, f32::min);
         let min_y = pos_data
             .column(1)
             .iter()
             .copied()
-            .fold(f64::INFINITY, f64::min);
+            .fold(f32::INFINITY, f32::min);
         let row = batch / NCOLS;
         let col = batch % NCOLS;
-        let x_off = col as f64 * (cell_w + GAP);
-        let y_off = row as f64 * (cell_h + GAP);
+        let x_off = col as f32 * (cell_w + GAP);
+        let y_off = row as f32 * (cell_h + GAP);
         let mut p = pos_data;
         p.column_mut(0).mapv_inplace(|v| v - min_x + x_off);
         p.column_mut(1).mapv_inplace(|v| v - min_y + y_off);

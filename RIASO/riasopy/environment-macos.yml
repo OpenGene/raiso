@@ -8,6 +8,8 @@ dependencies:
   - pkg-config
   - hdf5=1.14.6
   - arpack
+  # Use the pthread OpenBLAS variant on both arm64 and x86_64 macOS.
+  # The CI workflow explicitly selects this variant after environment creation.
   - libblas=*=*_openblas
   - libcblas=*=*_openblas
   - liblapack=*=*_openblas

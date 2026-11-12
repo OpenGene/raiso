@@ -8,8 +8,8 @@ use crate::algorithm::qc::upsert_column;
 use crate::core::SoData;
 
 pub fn leiden(
-    connectivities: &Array2<f64>,
-    resolution: f64,
+    connectivities: &Array2<f32>,
+    resolution: f32,
     random_state: u64,
 ) -> Result<Vec<i64>> {
     let (n, m) = connectivities.dim();
@@ -24,7 +24,7 @@ pub fn leiden(
         for j in (i + 1)..n {
             let w = connectivities[[i, j]];
             if w > 0.0 {
-                b.add_edge(i, j, w)?;
+                b.add_edge(i, j, w as f64)?;
             }
         }
     }
@@ -32,8 +32,8 @@ pub fn leiden(
 }
 
 pub fn leiden_from_csr(
-    connectivities: &CsrMatrix<f64>,
-    resolution: f64,
+    connectivities: &CsrMatrix<f32>,
+    resolution: f32,
     random_state: u64,
 ) -> Result<Vec<i64>> {
     let (n, m) = (connectivities.nrows(), connectivities.ncols());
@@ -48,19 +48,19 @@ pub fn leiden_from_csr(
         let row = connectivities.row(i);
         for (&j, &w) in row.col_indices().iter().zip(row.values().iter()) {
             if j > i && w > 0.0 {
-                b.add_edge(i, j, w)?;
+                b.add_edge(i, j, w as f64)?;
             }
         }
     }
     run_leiden_graph(b, resolution, random_state)
 }
 
-fn run_leiden_graph(b: GraphDataBuilder, resolution: f64, random_state: u64) -> Result<Vec<i64>> {
+fn run_leiden_graph(b: GraphDataBuilder, resolution: f32, random_state: u64) -> Result<Vec<i64>> {
     let graph = b.build()?;
 
     let config = LeidenConfig::builder()
         .quality(QualityType::RBConfiguration)
-        .resolution(resolution)
+        .resolution(resolution as f64)
         .seed(random_state)
         .build();
     let out = Leiden::new(config)
@@ -70,19 +70,21 @@ fn run_leiden_graph(b: GraphDataBuilder, resolution: f64, random_state: u64) -> 
     Ok(out.partition.as_slice().iter().map(|&c| c as i64).collect())
 }
 
-pub fn run_leiden(data: &mut SoData, resolution: f64, random_state: u64) {
-    let conn = match data.result.neighbors.as_ref() {
-        Some(n) => &n.connectivities,
+pub fn run_leiden(data: &mut SoData, resolution: f32, random_state: u64) {
+    crate::parallel::with_thread_cap("leiden", || {
+        let conn = match data.result.neighbors.as_ref() {
+            Some(n) => &n.connectivities,
 
-        None => return,
-    };
+            None => return,
+        };
 
-    let labels = match leiden_from_csr(conn, resolution, random_state) {
-        Ok(l) => l,
-        Err(_) => return,
-    };
+        let labels = match leiden_from_csr(conn, resolution, random_state) {
+            Ok(l) => l,
+            Err(_) => return,
+        };
 
-    if let Some(obs) = data.obs.as_mut() {
-        upsert_column(obs, Column::new("leiden".into(), labels));
-    }
+        if let Some(obs) = data.obs.as_mut() {
+            upsert_column(obs, Column::new("leiden".into(), labels));
+        }
+    });
 }

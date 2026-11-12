@@ -223,9 +223,9 @@ pub fn read_gef(
         .context("read_gef: failed to build the CSR fill thread pool")?;
     let mut cursor = row_offsets[..n_cells].to_vec();
     let mut col_indices = vec![0usize; nnz];
-    let mut values = vec![0f64; nnz];
+    let mut values = vec![0f32; nnz];
 
-    let mut exon_values: Option<Vec<f64>> = exon.as_ref().map(|_| vec![0f64; nnz]);
+    let mut exon_values: Option<Vec<f32>> = exon.as_ref().map(|_| vec![0f32; nnz]);
     let bin_index = &bin_index;
     let cursor_ptr = SendPtr(cursor.as_mut_ptr());
     let col_ptr = SendPtr(col_indices.as_mut_ptr());
@@ -250,7 +250,7 @@ pub fn read_gef(
                 let cell = bin_index[&(packed >> 16)];
                 let pos = cursor[cell];
                 col_indices[pos] = g;
-                values[pos] = (packed & 0xFFFF) as f64;
+                values[pos] = (packed & 0xFFFF) as f32;
                 if let (Some(ep), Some(er)) = (exon_ptr.as_ref(), exon_run) {
                     unsafe {
                         *ep.add(pos) = er[j];
@@ -265,7 +265,7 @@ pub fn read_gef(
                     let pos = unsafe { *cursor_ptr.add(cell) };
                     unsafe {
                         *col_ptr.add(pos) = g;
-                        *val_ptr.add(pos) = (packed & 0xFFFF) as f64;
+                        *val_ptr.add(pos) = (packed & 0xFFFF) as f32;
                         *cursor_ptr.add(cell) = pos + 1;
                     }
                     if let (Some(ep), Some(er)) = (exon_ptr.as_ref(), exon_run) {
@@ -285,7 +285,7 @@ pub fn read_gef(
                 n_genes,
                 row_offsets.clone(),
                 col_indices.clone(),
-                ev.into_iter().map(|v| v as f32).collect(),
+                ev.into_iter().collect(),
             )
             .map_err(|err| anyhow!("read_gef: failed to build the exon CSR: {err:?}"))?,
         ),
@@ -296,7 +296,7 @@ pub fn read_gef(
         n_genes,
         row_offsets,
         col_indices,
-        values.into_iter().map(|v| v as f32).collect(),
+        values.into_iter().collect(),
     )
     .map_err(|e| anyhow!("read_gef: failed to build the CSR: {e:?}"))?;
     _t();
@@ -334,8 +334,8 @@ pub fn read_gef(
 
     let mut pos_flat = Vec::with_capacity(n_cells * 2);
     for &b in &bins {
-        pos_flat.push(bin_x(b) as f64);
-        pos_flat.push(bin_y(b) as f64);
+        pos_flat.push(bin_x(b) as f32);
+        pos_flat.push(bin_y(b) as f32);
     }
     data.position = Some(
         Array2::from_shape_vec((n_cells, 2), pos_flat)
@@ -397,8 +397,8 @@ fn read_gef_cellbin(
     let mut pos_flat = Vec::with_capacity(n_cells * 2);
     for c in &cells {
         row_offsets.push(c.offset as usize);
-        pos_flat.push(c.x as f64);
-        pos_flat.push(c.y as f64);
+        pos_flat.push(c.x as f32);
+        pos_flat.push(c.y as f32);
     }
 
     let cell_exp = cellbin
@@ -407,10 +407,10 @@ fn read_gef_cellbin(
     let nnz = cell_exp.size();
     row_offsets.push(nnz);
     let mut col_indices = vec![0usize; nnz];
-    let mut values = vec![0f64; nnz];
+    let mut values = vec![0f32; nnz];
     read_cell_exp(path, "cellBin/cellExp", nnz, &mut col_indices, &mut values)?;
 
-    let mut exon_values: Option<Vec<f64>> = if save_exon_layer && cellbin.link_exists("cellExpExon")
+    let mut exon_values: Option<Vec<f32>> = if save_exon_layer && cellbin.link_exists("cellExpExon")
     {
         Some(read_exon(path, "cellBin/cellExpExon", nnz)?)
     } else {
@@ -442,7 +442,7 @@ fn read_gef_cellbin(
                 n_genes,
                 row_offsets.clone(),
                 col_indices.clone(),
-                ev.into_iter().map(|v| v as f32).collect(),
+                ev.into_iter().collect(),
             )
             .map_err(|err| anyhow!("read_gef: failed to build the cellbin exon CSR: {err:?}"))?,
         ),
@@ -454,7 +454,7 @@ fn read_gef_cellbin(
         n_genes,
         row_offsets,
         col_indices,
-        values.into_iter().map(|v| v as f32).collect(),
+        values.into_iter().collect(),
     )
     .map_err(|e| anyhow!("read_gef: failed to build the cellbin CSR: {e:?}"))?;
 
@@ -528,8 +528,8 @@ fn read_gef_cellbin(
 fn merge_duplicate_symbols(
     genes: Vec<GeneRow>,
     expr: Vec<u64>,
-    exon: Option<Vec<f64>>,
-) -> (Vec<GeneRow>, Vec<u64>, Option<Vec<f64>>) {
+    exon: Option<Vec<f32>>,
+) -> (Vec<GeneRow>, Vec<u64>, Option<Vec<f32>>) {
     let mut groups: HashMap<String, Vec<usize>> = HashMap::new();
     for (i, g) in genes.iter().enumerate() {
         groups.entry(g.gene_name.clone()).or_default().push(i);
@@ -538,8 +538,8 @@ fn merge_duplicate_symbols(
     let mut new_genes: Vec<GeneRow> = Vec::with_capacity(groups.len());
     let mut new_expr: Vec<u64> = Vec::with_capacity(expr.len());
 
-    let mut new_exon: Option<Vec<f64>> = exon.as_ref().map(|_| Vec::with_capacity(expr.len()));
-    let mut acc: HashMap<u64, (u64, f64)> = HashMap::new();
+    let mut new_exon: Option<Vec<f32>> = exon.as_ref().map(|_| Vec::with_capacity(expr.len()));
+    let mut acc: HashMap<u64, (u64, f32)> = HashMap::new();
     for (i, g) in genes.iter().enumerate() {
         let members = &groups[g.gene_name.as_str()];
         if members[0] != i {
@@ -597,13 +597,13 @@ fn merge_cellbin_gene_rows(genes: &[GeneRow]) -> (Vec<GeneRow>, Vec<u32>) {
 fn merge_csr_cols_inplace(
     row_offsets: &[usize],
     col_indices: &mut Vec<usize>,
-    values: &mut Vec<f64>,
-    mut exon_values: Option<&mut Vec<f64>>,
+    values: &mut Vec<f32>,
+    mut exon_values: Option<&mut Vec<f32>>,
     old_to_new: &[u32],
 ) -> (Vec<usize>, usize) {
     let n_cells = row_offsets.len() - 1;
     let mut new_offsets = Vec::with_capacity(row_offsets.len());
-    let mut scratch: Vec<(usize, f64, f64)> = Vec::new();
+    let mut scratch: Vec<(usize, f32, f32)> = Vec::new();
     let mut write = 0usize;
     let mut unsorted_rows = 0usize;
 
@@ -808,7 +808,7 @@ fn read_cell_exp(
     dataset_path: &str,
     n_elems: usize,
     col_indices: &mut [usize],
-    values: &mut [f64],
+    values: &mut [f32],
 ) -> Result<()> {
     const IO_NTHREADS: usize = 4;
     let n_threads = IO_NTHREADS.min(n_elems.max(1));
@@ -832,7 +832,7 @@ fn read_cell_exp(
                 let pos = r0 + k;
                 unsafe {
                     *col_ptr.add(pos) = rec.gene_id as usize;
-                    *val_ptr.add(pos) = rec.count as f64;
+                    *val_ptr.add(pos) = rec.count as f32;
                 }
             }
             Ok(())
@@ -945,7 +945,7 @@ fn read_expression(
     Ok(expr)
 }
 
-fn read_exon(path: &str, dataset_path: &str, n_elems: usize) -> Result<Vec<f64>> {
+fn read_exon(path: &str, dataset_path: &str, n_elems: usize) -> Result<Vec<f32>> {
     let td = {
         let file = File::open(path).context("read_exon: failed to reopen the GEF file")?;
         let ds = file
@@ -963,7 +963,7 @@ fn read_exon(path: &str, dataset_path: &str, n_elems: usize) -> Result<Vec<f64>>
     const IO_NTHREADS: usize = 4;
     let n_threads = IO_NTHREADS.min(n_elems.max(1));
     let chunk = n_elems.div_ceil(n_threads);
-    let shards: Vec<Result<Vec<f64>>> = (0..n_threads)
+    let shards: Vec<Result<Vec<f32>>> = (0..n_threads)
         .into_par_iter()
         .map(|tid| {
             let r0 = tid * chunk;
@@ -977,18 +977,18 @@ fn read_exon(path: &str, dataset_path: &str, n_elems: usize) -> Result<Vec<f64>>
                 .context("read_exon: failed to open the exon dataset")?;
             let mut out = Vec::with_capacity(r1 - r0);
             if is_u1 {
-                out.extend(ds.read_slice_1d::<u8, _>(r0..r1)?.iter().map(|&v| v as f64));
+                out.extend(ds.read_slice_1d::<u8, _>(r0..r1)?.iter().map(|&v| v as f32));
             } else if is_u2 {
                 out.extend(
                     ds.read_slice_1d::<u16, _>(r0..r1)?
                         .iter()
-                        .map(|&v| v as f64),
+                        .map(|&v| v as f32),
                 );
             } else {
                 out.extend(
                     ds.read_slice_1d::<u32, _>(r0..r1)?
                         .iter()
-                        .map(|&v| v as f64),
+                        .map(|&v| v as f32),
                 );
             }
             Ok(out)

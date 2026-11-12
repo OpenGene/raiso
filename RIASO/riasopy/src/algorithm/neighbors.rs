@@ -7,13 +7,13 @@ use rayon::prelude::*;
 
 use crate::core::{NeighborsResult, SoData};
 
-fn pairwise_euclidean(x: &Array2<f64>) -> Array2<f64> {
+fn pairwise_euclidean(x: &Array2<f32>) -> Array2<f32> {
     let n = x.nrows();
     let d = x.ncols();
 
-    let norms: Vec<f64> = (0..n)
+    let norms: Vec<f32> = (0..n)
         .map(|i| {
-            let mut s = 0.0f64;
+            let mut s = 0.0f32;
             for c in 0..d {
                 let a = x[[i, c]];
                 s += a * a;
@@ -22,12 +22,12 @@ fn pairwise_euclidean(x: &Array2<f64>) -> Array2<f64> {
         })
         .collect();
 
-    let dists_flat: Vec<f64> = (0..n)
+    let dists_flat: Vec<f32> = (0..n)
         .into_par_iter()
         .flat_map_iter(|i| {
             let norms = &norms;
             (0..n).map(move |j| {
-                let mut dot = 0.0f64;
+                let mut dot = 0.0f32;
                 for c in 0..d {
                     dot += x[[i, c]] * x[[j, c]];
                 }
@@ -44,12 +44,12 @@ fn pairwise_euclidean(x: &Array2<f64>) -> Array2<f64> {
     dists
 }
 
-fn knn_including_self(dists: &Array2<f64>, n_neighbors: usize) -> (Array2<i64>, Array2<f64>) {
+fn knn_including_self(dists: &Array2<f32>, n_neighbors: usize) -> (Array2<i64>, Array2<f32>) {
     let n = dists.nrows();
-    let rows: Vec<(Vec<i64>, Vec<f64>)> = (0..n)
+    let rows: Vec<(Vec<i64>, Vec<f32>)> = (0..n)
         .into_par_iter()
         .map(|i| {
-            let mut pairs: Vec<(i64, f64)> = (0..n).map(|j| (j as i64, dists[[i, j]])).collect();
+            let mut pairs: Vec<(i64, f32)> = (0..n).map(|j| (j as i64, dists[[i, j]])).collect();
             pairs.select_nth_unstable_by(n_neighbors - 1, |a, b| {
                 a.1.total_cmp(&b.1).then(a.0.cmp(&b.0))
             });
@@ -63,7 +63,7 @@ fn knn_including_self(dists: &Array2<f64>, n_neighbors: usize) -> (Array2<i64>, 
         .collect();
 
     let mut idx = Array2::<i64>::zeros((n, n_neighbors));
-    let mut dvals = Array2::<f64>::zeros((n, n_neighbors));
+    let mut dvals = Array2::<f32>::zeros((n, n_neighbors));
     for (i, (ri, rv)) in rows.into_iter().enumerate() {
         for k in 0..n_neighbors {
             idx[[i, k]] = ri[k];
@@ -73,35 +73,35 @@ fn knn_including_self(dists: &Array2<f64>, n_neighbors: usize) -> (Array2<i64>, 
     (idx, dvals)
 }
 
-fn smooth_knn_dist(knn_dists: &Array2<f64>, n_neighbors: usize) -> (Array1<f64>, Array1<f64>) {
+fn smooth_knn_dist(knn_dists: &Array2<f32>, n_neighbors: usize) -> (Array1<f32>, Array1<f32>) {
     let n = knn_dists.nrows();
 
-    let target = (n_neighbors as f64).log2();
+    let target = (n_neighbors as f32).log2();
 
-    let mut rho = Array1::<f64>::zeros(n);
-    let mut result = Array1::<f64>::zeros(n);
+    let mut rho = Array1::<f32>::zeros(n);
+    let mut result = Array1::<f32>::zeros(n);
 
-    let mut mean_distances: f64 = knn_dists.iter().sum::<f64>() / (n * n_neighbors) as f64;
+    let mut mean_distances: f32 = knn_dists.iter().sum::<f32>() / (n * n_neighbors) as f32;
 
     for i in 0..n {
-        let mut min_nonzero = f64::INFINITY;
+        let mut min_nonzero = f32::INFINITY;
         for j in 1..n_neighbors {
             let v = knn_dists[[i, j]];
             if v > 0.0 && v < min_nonzero {
                 min_nonzero = v;
             }
         }
-        rho[i] = if min_nonzero == f64::INFINITY {
+        rho[i] = if min_nonzero == f32::INFINITY {
             0.0
         } else {
             min_nonzero
         };
 
-        let mut lo = 0.0f64;
-        let mut hi = f64::INFINITY;
-        let mut mid = 1.0f64;
+        let mut lo = 0.0f32;
+        let mut hi = f32::INFINITY;
+        let mut mid = 1.0f32;
         for _ in 0..64 {
-            let mut psum = 0.0f64;
+            let mut psum = 0.0f32;
             for j in 1..n_neighbors {
                 let d = knn_dists[[i, j]] - rho[i];
                 psum += if d > 0.0 { (-(d / mid)).exp() } else { 1.0 };
@@ -114,7 +114,7 @@ fn smooth_knn_dist(knn_dists: &Array2<f64>, n_neighbors: usize) -> (Array1<f64>,
                 mid = (lo + hi) / 2.0;
             } else {
                 lo = mid;
-                if hi == f64::INFINITY {
+                if hi == f32::INFINITY {
                     mid *= 2.0;
                 } else {
                     mid = (lo + hi) / 2.0;
@@ -124,7 +124,7 @@ fn smooth_knn_dist(knn_dists: &Array2<f64>, n_neighbors: usize) -> (Array1<f64>,
         result[i] = mid;
 
         if rho[i] > 0.0 {
-            mean_distances -= rho[i] / (n as f64);
+            mean_distances -= rho[i] / (n as f32);
         }
     }
 
@@ -137,10 +137,10 @@ fn smooth_knn_dist(knn_dists: &Array2<f64>, n_neighbors: usize) -> (Array1<f64>,
 
 fn compute_membership_strengths(
     knn_indices: &Array2<i64>,
-    knn_dists: &Array2<f64>,
-    sigmas: &Array1<f64>,
-    rhos: &Array1<f64>,
-) -> (Vec<usize>, Vec<usize>, Vec<f64>) {
+    knn_dists: &Array2<f32>,
+    sigmas: &Array1<f32>,
+    rhos: &Array1<f32>,
+) -> (Vec<usize>, Vec<usize>, Vec<f32>) {
     let n = knn_indices.nrows();
     let n_neighbors = knn_indices.ncols();
     let mut rows = Vec::with_capacity(n * n_neighbors);
@@ -170,7 +170,7 @@ fn compute_membership_strengths(
     (rows, cols, vals)
 }
 
-fn entries_to_csr(n: usize, mut entries: Vec<(usize, usize, f64)>) -> CsrMatrix<f64> {
+fn entries_to_csr(n: usize, mut entries: Vec<(usize, usize, f32)>) -> CsrMatrix<f32> {
     entries.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.cmp(&b.1)));
     let mut offsets = vec![0usize; n + 1];
     let mut cols = Vec::with_capacity(entries.len());
@@ -186,15 +186,15 @@ fn entries_to_csr(n: usize, mut entries: Vec<(usize, usize, f64)>) -> CsrMatrix<
     CsrMatrix::try_from_csr_data(n, n, offsets, cols, vals).expect("entries_to_csr: valid CSR")
 }
 
-fn fuzzy_simplicial_set(n: usize, rows: &[usize], cols: &[usize], vals: &[f64]) -> CsrMatrix<f64> {
-    let mut a: HashMap<(usize, usize), f64> = HashMap::new();
+fn fuzzy_simplicial_set(n: usize, rows: &[usize], cols: &[usize], vals: &[f32]) -> CsrMatrix<f32> {
+    let mut a: HashMap<(usize, usize), f32> = HashMap::new();
     for k in 0..rows.len() {
         if vals[k] != 0.0 {
             a.insert((rows[k], cols[k]), vals[k]);
         }
     }
 
-    let mut union: HashMap<(usize, usize), f64> = HashMap::new();
+    let mut union: HashMap<(usize, usize), f32> = HashMap::new();
     for (&(i, j), &a_ij) in &a {
         let a_ji = a.get(&(j, i)).copied().unwrap_or(0.0);
         let c = a_ij + a_ji - a_ij * a_ji;
@@ -202,15 +202,15 @@ fn fuzzy_simplicial_set(n: usize, rows: &[usize], cols: &[usize], vals: &[f64]) 
         union.insert((j, i), c);
     }
 
-    let entries: Vec<(usize, usize, f64)> =
+    let entries: Vec<(usize, usize, f32)> =
         union.into_iter().map(|((i, j), v)| (i, j, v)).collect();
     entries_to_csr(n, entries)
 }
 
-fn nn_dist_csr(knn_indices: &Array2<i64>, knn_dists: &Array2<f64>) -> CsrMatrix<f64> {
+fn nn_dist_csr(knn_indices: &Array2<i64>, knn_dists: &Array2<f32>) -> CsrMatrix<f32> {
     let n = knn_indices.nrows();
     let n_neighbors = knn_indices.ncols();
-    let mut entries: Vec<(usize, usize, f64)> = Vec::new();
+    let mut entries: Vec<(usize, usize, f32)> = Vec::new();
     for i in 0..n {
         for j in 0..n_neighbors {
             let idx = knn_indices[[i, j]];
@@ -223,7 +223,7 @@ fn nn_dist_csr(knn_indices: &Array2<i64>, knn_dists: &Array2<f64>) -> CsrMatrix<
     entries_to_csr(n, entries)
 }
 
-pub fn neighbors(x: &Array2<f64>, n_neighbors: usize) -> Result<NeighborsResult> {
+pub fn neighbors(x: &Array2<f32>, n_neighbors: usize) -> Result<NeighborsResult> {
     let n = x.nrows();
     if n == 0 {
         return Err(anyhow!("neighbors: empty input (0 samples)"));
@@ -257,7 +257,7 @@ pub fn neighbors(x: &Array2<f64>, n_neighbors: usize) -> Result<NeighborsResult>
 pub fn run_neighbors(data: &mut SoData, n_neighbors: usize, n_pcs: Option<usize>) {
     data.result.neighbors = None;
 
-    let z: &Array2<f64> = if let Some(b) = &data.result.batch {
+    let z: &Array2<f32> = if let Some(b) = &data.result.batch {
         &b.corrected
     } else if let Some(p) = &data.result.pca {
         &p.projected
@@ -271,7 +271,7 @@ pub fn run_neighbors(data: &mut SoData, n_neighbors: usize, n_pcs: Option<usize>
         return;
     }
 
-    let x: Array2<f64> = z.slice(s![.., ..n_pcs]).to_owned();
+    let x: Array2<f32> = z.slice(s![.., ..n_pcs]).to_owned();
 
     if let Ok(result) = neighbors(&x, n_neighbors) {
         data.result.neighbors = Some(result);

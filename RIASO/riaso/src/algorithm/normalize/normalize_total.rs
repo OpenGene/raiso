@@ -7,7 +7,7 @@ use crate::parallel::SendPtr;
 
 pub const NORMALIZE_TOTAL_LAYER: &str = "normalize_total";
 
-pub fn normalize_total(data: &mut SoData, target_sum: Option<f64>, write_layer: bool) {
+pub fn normalize_total(data: &mut SoData, target_sum: Option<f32>, write_layer: bool) {
     if let Some(exp) = &mut data.exp_matrix {
         match exp {
             ExpMatrix::Dense(arr) => normalize_total_dense(arr, target_sum),
@@ -19,7 +19,7 @@ pub fn normalize_total(data: &mut SoData, target_sum: Option<f64>, write_layer: 
     }
 }
 
-fn normalize_total_dense(arr: &mut Array2<f32>, target_sum: Option<f64>) {
+fn normalize_total_dense(arr: &mut Array2<f32>, target_sum: Option<f32>) {
     if !arr.is_standard_layout() {
         *arr = arr.as_standard_layout().into_owned();
     }
@@ -29,7 +29,7 @@ fn normalize_total_dense(arr: &mut Array2<f32>, target_sum: Option<f64>) {
     let row_sums: Vec<f32> = slice.par_chunks(m).map(|row| row.iter().sum()).collect();
 
     let default_target: f32 = match target_sum {
-        Some(t) => t as f32,
+        Some(t) => t,
         None => median_nonzero(&row_sums).unwrap_or(10000.0f32),
     };
 
@@ -50,7 +50,7 @@ fn normalize_total_dense(arr: &mut Array2<f32>, target_sum: Option<f64>) {
         });
 }
 
-fn normalize_total_sparse(csr: &mut CsrMatrix<f32>, target_sum: Option<f64>) {
+fn normalize_total_sparse(csr: &mut CsrMatrix<f32>, target_sum: Option<f32>) {
     let n = csr.nrows();
 
     let offsets = csr.row_offsets().to_vec();
@@ -64,7 +64,7 @@ fn normalize_total_sparse(csr: &mut CsrMatrix<f32>, target_sum: Option<f64>) {
     };
 
     let default_target: f32 = match target_sum {
-        Some(t) => t as f32,
+        Some(t) => t,
         None => median_nonzero(&row_sums).unwrap_or(10000.0f32),
     };
 

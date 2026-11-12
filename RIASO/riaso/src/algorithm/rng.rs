@@ -54,9 +54,9 @@ impl Mt19937 {
         (a << 32) | b
     }
 
-    pub fn rk_double(&mut self) -> f64 {
-        let a = (self.genrand_uint32() >> 5) as f64;
-        let b = (self.genrand_uint32() >> 6) as f64;
+    pub fn rk_double(&mut self) -> f32 {
+        let a = (self.genrand_uint32() >> 5) as f32;
+        let b = (self.genrand_uint32() >> 6) as f32;
         (a * 67108864.0 + b) / 9007199254740992.0
     }
 
@@ -142,14 +142,14 @@ impl StdNormal {
     }
 
     #[inline]
-    fn next_open01(&mut self) -> f64 {
-        (self.next_u64() >> 11) as f64 * (1.0 / (1u64 << 53) as f64)
+    fn next_open01(&mut self) -> f32 {
+        (self.next_u64() >> 11) as f32 * (1.0 / (1u64 << 53) as f32)
     }
 
     #[inline]
-    pub fn next_normal(&mut self) -> f64 {
-        let u1 = self.next_open01().max(f64::MIN_POSITIVE);
+    pub fn next_normal(&mut self) -> f32 {
+        let u1 = self.next_open01().max(f32::MIN_POSITIVE);
         let u2 = self.next_open01();
-        (-2.0 * u1.ln()).sqrt() * (std::f64::consts::TAU * u2).cos()
+        (-2.0 * u1.ln()).sqrt() * (std::f32::consts::TAU * u2).cos()
     }
 }

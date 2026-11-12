@@ -5,7 +5,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use anyhow::{Context, Result};
 
 use super::{file_name_of, html_escape, label_counts, stats, Report};
-use crate::pipeline::{display_numbers, obs_f64, ORA_DBS, QC_METRICS};
+use crate::pipeline::{display_numbers, obs_f32, ORA_DBS, QC_METRICS};
 
 const REP_MARKER_GENES: usize = 2;
 
@@ -150,7 +150,7 @@ fn esc(s: &str) -> String {
     html_escape(s)
 }
 
-fn num(x: f64) -> String {
+fn num(x: f32) -> String {
     if x.is_finite() {
         format!("{x}")
     } else {
@@ -158,7 +158,7 @@ fn num(x: f64) -> String {
     }
 }
 
-fn num4(x: f64) -> String {
+fn num4(x: f32) -> String {
     if x.is_finite() {
         format!("{x:.4}")
     } else {
@@ -166,7 +166,7 @@ fn num4(x: f64) -> String {
     }
 }
 
-fn nume(x: f64) -> String {
+fn nume(x: f32) -> String {
     if x.is_finite() {
         format!("{x:.3e}")
     } else {
@@ -304,7 +304,7 @@ const SCRIPT: &str = r#"<script>
   for (var i = 0; i < sels.length; i++) {
     (function (s) {
       s.addEventListener('change', function () { apply(s); });
-      apply(s); // apply the default filter once on first paint
+      apply(s);
     })(sels[i]);
   }
 })();
@@ -315,7 +315,7 @@ const SCRIPT: &str = r#"<script>
 fn qc_section(r: &Report<'_>, name: &str, exists: &dyn Fn(&str) -> bool) -> String {
     let mut rows = Vec::new();
     for metric in QC_METRICS {
-        if let Ok(v) = obs_f64(r.sd, metric) {
+        if let Ok(v) = obs_f32(r.sd, metric) {
             let (med, avg) = stats(&v);
             rows.push(vec![
                 format!("<code>{metric}</code>"),
@@ -325,12 +325,12 @@ fn qc_section(r: &Report<'_>, name: &str, exists: &dyn Fn(&str) -> bool) -> Stri
                     .iter()
                     .copied()
                     .filter(|x| x.is_finite())
-                    .fold(f64::NAN, f64::min)),
+                    .fold(f32::NAN, f32::min)),
                 num(v
                     .iter()
                     .copied()
                     .filter(|x| x.is_finite())
-                    .fold(f64::NAN, f64::max)),
+                    .fold(f32::NAN, f32::max)),
             ]);
         }
     }

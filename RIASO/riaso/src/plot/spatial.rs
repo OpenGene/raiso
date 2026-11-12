@@ -7,7 +7,7 @@ use rayon::prelude::*;
 use crate::core::SoData;
 use crate::parallel::{par_bbox, par_min_max};
 
-const STEREO_ANCHORS: [(f64, (u8, u8, u8)); 5] = [
+const STEREO_ANCHORS: [(f32, (u8, u8, u8)); 5] = [
     (0.00, (0x0c, 0x33, 0x83)),
     (0.25, (0x0a, 0x88, 0xba)),
     (0.50, (0xf2, 0xd3, 0x38)),
@@ -15,14 +15,14 @@ const STEREO_ANCHORS: [(f64, (u8, u8, u8)); 5] = [
     (1.00, (0xd9, 0x1e, 0x1e)),
 ];
 
-pub(crate) fn stereo_colormap(t: f64) -> RGBColor {
+pub(crate) fn stereo_colormap(t: f32) -> RGBColor {
     let t = t.clamp(0.0, 1.0);
     for w in STEREO_ANCHORS.windows(2) {
         let (t0, c0) = w[0];
         let (t1, c1) = w[1];
         if t <= t1 {
             let f = (t - t0) / (t1 - t0);
-            let lerp = |a: u8, b: u8| (a as f64 + (b as f64 - a as f64) * f).round() as u8;
+            let lerp = |a: u8, b: u8| (a as f32 + (b as f32 - a as f32) * f).round() as u8;
             return RGBColor(lerp(c0.0, c1.0), lerp(c0.1, c1.1), lerp(c0.2, c1.2));
         }
     }
@@ -30,7 +30,7 @@ pub(crate) fn stereo_colormap(t: f64) -> RGBColor {
     RGBColor(c.0, c.1, c.2)
 }
 
-pub(crate) fn extract_position(data: &SoData) -> anyhow::Result<(Vec<f64>, Vec<f64>)> {
+pub(crate) fn extract_position(data: &SoData) -> anyhow::Result<(Vec<f32>, Vec<f32>)> {
     let pos = data
         .position
         .as_ref()
@@ -38,20 +38,20 @@ pub(crate) fn extract_position(data: &SoData) -> anyhow::Result<(Vec<f64>, Vec<f
     Ok((pos.column(0).to_vec(), pos.column(1).to_vec()))
 }
 
-pub(crate) fn default_dot_size_px(n: usize, area_px: f64) -> f64 {
-    let spacing = (area_px / n.max(1) as f64).sqrt();
+pub(crate) fn default_dot_size_px(n: usize, area_px: f32) -> f32 {
+    let spacing = (area_px / n.max(1) as f32).sqrt();
     spacing * 1.3
 }
 
 pub(crate) fn spatial_scatter_panel<DB: DrawingBackend>(
     area: &DrawingArea<DB, Shift>,
     name: &str,
-    xs: &[f64],
-    ys: &[f64],
-    vals: &[f64],
-    vmin: Option<f64>,
-    vmax: Option<f64>,
-    dot_size: Option<f64>,
+    xs: &[f32],
+    ys: &[f32],
+    vals: &[f32],
+    vmin: Option<f32>,
+    vmax: Option<f32>,
+    dot_size: Option<f32>,
 ) -> Result<(), DrawingAreaErrorKind<DB::ErrorType>> {
     if vals.is_empty() {
         return Ok(());
@@ -86,16 +86,16 @@ pub(crate) fn spatial_scatter_panel<DB: DrawingBackend>(
     let (aw, ah) = plot_area.dim_in_pixel();
     let (aw, ah) = (aw as i32, ah as i32);
     let ar = (x1 - x0) / (y1 - y0);
-    let plw_w = (aw - MARGIN * 2 - Y_LABEL).max(1) as f64;
-    let mut pw = aw as f64;
-    let mut ph = plw_w / ar + (MARGIN * 2 + X_LABEL + CAPTION) as f64;
-    if ph > ah as f64 {
-        ph = ah as f64;
-        let plh = (ph - (MARGIN * 2 + X_LABEL + CAPTION) as f64).max(1.0);
-        pw = plh * ar + (MARGIN * 2 + Y_LABEL) as f64;
+    let plw_w = (aw - MARGIN * 2 - Y_LABEL).max(1) as f32;
+    let mut pw = aw as f32;
+    let mut ph = plw_w / ar + (MARGIN * 2 + X_LABEL + CAPTION) as f32;
+    if ph > ah as f32 {
+        ph = ah as f32;
+        let plh = (ph - (MARGIN * 2 + X_LABEL + CAPTION) as f32).max(1.0);
+        pw = plh * ar + (MARGIN * 2 + Y_LABEL) as f32;
     }
-    let pw = (pw.max(1.0)).min(aw as f64) as i32;
-    let ph = (ph.max(1.0)).min(ah as f64) as i32;
+    let pw = (pw.max(1.0)).min(aw as f32) as i32;
+    let ph = (ph.max(1.0)).min(ah as f32) as i32;
     let left_pad = ((aw - pw) / 2).max(0);
     let top_pad = ((ah - ph) / 2).max(0);
     let plot_area = plot_area.margin(top_pad, top_pad, left_pad, left_pad);
@@ -118,14 +118,14 @@ pub(crate) fn spatial_scatter_panel<DB: DrawingBackend>(
 
     let (pw, ph) = chart.plotting_area().dim_in_pixel();
     let dot_size = dot_size.unwrap_or_else(|| {
-        let area = (pw as f64) * (ph as f64);
+        let area = (pw as f32) * (ph as f32);
         default_dot_size_px(xs.len(), area)
     });
-    let hx = dot_size * 0.5 * (x1 - x0) / (pw as f64).max(1.0);
-    let hy = dot_size * 0.5 * (y1 - y0) / (ph as f64).max(1.0);
+    let hx = dot_size * 0.5 * (x1 - x0) / (pw as f32).max(1.0);
+    let hy = dot_size * 0.5 * (y1 - y0) / (ph as f32).max(1.0);
     let inv = 1.0 / (vmax - vmin);
 
-    let pts: Vec<(f64, f64, RGBColor)> = vals
+    let pts: Vec<(f32, f32, RGBColor)> = vals
         .par_iter()
         .zip(xs.par_iter().zip(ys.par_iter()))
         .map(|(&v, (&x, &y))| (x, y, stereo_colormap((v - vmin) * inv)))
@@ -141,8 +141,8 @@ pub(crate) fn spatial_scatter_panel<DB: DrawingBackend>(
 
 fn draw_colorbar<DB: DrawingBackend>(
     area: &DrawingArea<DB, Shift>,
-    vmin: f64,
-    vmax: f64,
+    vmin: f32,
+    vmax: f32,
 ) -> Result<(), DrawingAreaErrorKind<DB::ErrorType>> {
     let (w, h) = area.dim_in_pixel();
     let (w, h) = (w as i32, h as i32);
@@ -153,7 +153,7 @@ fn draw_colorbar<DB: DrawingBackend>(
     let y1 = (h - pad).max(y0 + 1);
     let n = 128;
     for i in 0..n {
-        let t = 1.0 - i as f64 / (n as f64 - 1.0);
+        let t = 1.0 - i as f32 / (n as f32 - 1.0);
         let ya = y0 + (y1 - y0) * i / n;
         let yb = y0 + (y1 - y0) * (i + 1) / n;
         area.draw(&Rectangle::new(
@@ -169,7 +169,7 @@ fn draw_colorbar<DB: DrawingBackend>(
     Ok(())
 }
 
-fn fmt_short(v: f64) -> String {
+fn fmt_short(v: f32) -> String {
     let a = v.abs();
     if a >= 1000.0 {
         format!("{v:.0}")

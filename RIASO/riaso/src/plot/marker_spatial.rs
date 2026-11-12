@@ -17,14 +17,14 @@ const PANEL_X_LABEL: i32 = 28;
 const PANEL_Y_LABEL: i32 = 40;
 const PANEL_CAPTION: i32 = 24;
 
-const TARGET_PLOT_AREA_PX: f64 = 470.0 * 470.0;
+const TARGET_PLOT_AREA_PX: f32 = 470.0 * 470.0;
 
 fn grid_cols(n_panels: usize, n_batches: usize) -> usize {
     let pref = if n_batches > 1 { 3 } else { 2 };
     pref.min(n_panels.max(1)).max(1)
 }
 
-fn auto_canvas(xs: &[f64], ys: &[f64], n_panels: usize, n_batches: usize) -> (u32, u32) {
+fn auto_canvas(xs: &[f32], ys: &[f32], n_panels: usize, n_batches: usize) -> (u32, u32) {
     let (x0, x1, y0, y1) = par_bbox(xs, ys);
 
     let ar = if (x1 - x0).is_finite() && (y1 - y0).is_finite() && y1 > y0 {
@@ -41,7 +41,7 @@ fn auto_canvas(xs: &[f64], ys: &[f64], n_panels: usize, n_batches: usize) -> (u3
     (cell_w as u32 * ncols, cell_h as u32 * nrows)
 }
 
-const FIRE_ANCHORS: [(f64, (u8, u8, u8)); 5] = [
+const FIRE_ANCHORS: [(f32, (u8, u8, u8)); 5] = [
     (0.00, (0xff, 0xff, 0xff)),
     (0.25, (0xff, 0xd1, 0x2e)),
     (0.50, (0xf8, 0x7b, 0x00)),
@@ -49,14 +49,14 @@ const FIRE_ANCHORS: [(f64, (u8, u8, u8)); 5] = [
     (1.00, (0x00, 0x00, 0x00)),
 ];
 
-fn fire_colormap(t: f64) -> RGBColor {
+fn fire_colormap(t: f32) -> RGBColor {
     let t = t.clamp(0.0, 1.0);
     for w in FIRE_ANCHORS.windows(2) {
         let (t0, c0) = w[0];
         let (t1, c1) = w[1];
         if t <= t1 {
             let f = (t - t0) / (t1 - t0);
-            let lerp = |a: u8, b: u8| (a as f64 + (b as f64 - a as f64) * f).round() as u8;
+            let lerp = |a: u8, b: u8| (a as f32 + (b as f32 - a as f32) * f).round() as u8;
             return RGBColor(lerp(c0.0, c1.0), lerp(c0.1, c1.1), lerp(c0.2, c1.2));
         }
     }
@@ -67,7 +67,7 @@ fn fire_colormap(t: f64) -> RGBColor {
 fn prepare_marker_spatial(
     sd: &SoData,
     genes: &[String],
-) -> anyhow::Result<(Vec<(String, Vec<f64>)>, Vec<f64>, Vec<f64>)> {
+) -> anyhow::Result<(Vec<(String, Vec<f32>)>, Vec<f32>, Vec<f32>)> {
     let exp = sd
         .exp_matrix
         .as_ref()
@@ -101,12 +101,12 @@ fn prepare_marker_spatial(
 fn render_marker_spatial_panel<DB: DrawingBackend>(
     area: &DrawingArea<DB, Shift>,
     name: &str,
-    xs: &[f64],
-    ys: &[f64],
-    vals: &[f64],
-    vmin: Option<f64>,
-    vmax: Option<f64>,
-    dot_size: Option<f64>,
+    xs: &[f32],
+    ys: &[f32],
+    vals: &[f32],
+    vmin: Option<f32>,
+    vmax: Option<f32>,
+    dot_size: Option<f32>,
 ) -> Result<(), DrawingAreaErrorKind<DB::ErrorType>> {
     if vals.is_empty() {
         return Ok(());
@@ -140,16 +140,16 @@ fn render_marker_spatial_panel<DB: DrawingBackend>(
     let (aw, ah) = plot_area.dim_in_pixel();
     let (aw, ah) = (aw as i32, ah as i32);
     let ar = (x1 - x0) / (y1 - y0);
-    let plw_w = (aw - MARGIN * 2 - Y_LABEL).max(1) as f64;
-    let mut pw = aw as f64;
-    let mut ph = plw_w / ar + (MARGIN * 2 + X_LABEL + CAPTION) as f64;
-    if ph > ah as f64 {
-        ph = ah as f64;
-        let plh = (ph - (MARGIN * 2 + X_LABEL + CAPTION) as f64).max(1.0);
-        pw = plh * ar + (MARGIN * 2 + Y_LABEL) as f64;
+    let plw_w = (aw - MARGIN * 2 - Y_LABEL).max(1) as f32;
+    let mut pw = aw as f32;
+    let mut ph = plw_w / ar + (MARGIN * 2 + X_LABEL + CAPTION) as f32;
+    if ph > ah as f32 {
+        ph = ah as f32;
+        let plh = (ph - (MARGIN * 2 + X_LABEL + CAPTION) as f32).max(1.0);
+        pw = plh * ar + (MARGIN * 2 + Y_LABEL) as f32;
     }
-    let pw = (pw.max(1.0)).min(aw as f64) as i32;
-    let ph = (ph.max(1.0)).min(ah as f64) as i32;
+    let pw = (pw.max(1.0)).min(aw as f32) as i32;
+    let ph = (ph.max(1.0)).min(ah as f32) as i32;
     let left_pad = ((aw - pw) / 2).max(0);
     let top_pad = ((ah - ph) / 2).max(0);
     let plot_area = plot_area.margin(top_pad, top_pad, left_pad, left_pad);
@@ -172,14 +172,14 @@ fn render_marker_spatial_panel<DB: DrawingBackend>(
 
     let (pw, ph) = chart.plotting_area().dim_in_pixel();
     let dot_size = dot_size.unwrap_or_else(|| {
-        let area = (pw as f64) * (ph as f64);
+        let area = (pw as f32) * (ph as f32);
         super::spatial::default_dot_size_px(xs.len(), area)
     });
-    let hx = dot_size * 0.5 * (x1 - x0) / (pw as f64).max(1.0);
-    let hy = dot_size * 0.5 * (y1 - y0) / (ph as f64).max(1.0);
+    let hx = dot_size * 0.5 * (x1 - x0) / (pw as f32).max(1.0);
+    let hy = dot_size * 0.5 * (y1 - y0) / (ph as f32).max(1.0);
     let inv = 1.0 / (vmax - vmin);
 
-    let pts: Vec<(f64, f64, RGBColor)> = vals
+    let pts: Vec<(f32, f32, RGBColor)> = vals
         .par_iter()
         .zip(xs.par_iter().zip(ys.par_iter()))
         .map(|(&v, (&x, &y))| (x, y, fire_colormap((v - vmin) * inv)))
@@ -195,9 +195,9 @@ fn render_marker_spatial_panel<DB: DrawingBackend>(
 
 struct GenePanels {
     title: String,
-    xs: Vec<f64>,
-    ys: Vec<f64>,
-    vals: Vec<f64>,
+    xs: Vec<f32>,
+    ys: Vec<f32>,
+    vals: Vec<f32>,
 }
 
 struct GeneSegs {
@@ -208,14 +208,14 @@ struct GeneSegs {
 #[allow(clippy::too_many_arguments)]
 fn render_marker_spatial<DB: DrawingBackend>(
     root: DrawingArea<DB, Shift>,
-    data: &[(String, Vec<f64>)],
-    xs: &[f64],
-    ys: &[f64],
+    data: &[(String, Vec<f32>)],
+    xs: &[f32],
+    ys: &[f32],
     batch: Option<&[i64]>,
     title: Option<&str>,
-    dot_size: Option<f64>,
-    vmin: Option<f64>,
-    vmax: Option<f64>,
+    dot_size: Option<f32>,
+    vmin: Option<f32>,
+    vmax: Option<f32>,
 ) -> Result<(), DrawingAreaErrorKind<DB::ErrorType>> {
     root.fill(&WHITE)?;
     let root = match title {
@@ -245,8 +245,8 @@ fn render_marker_spatial<DB: DrawingBackend>(
     for (gi, &end) in segs.ends.iter().enumerate() {
         let (glo, ghi) = {
             let vals = &data[gi].1;
-            let mut lo = f64::INFINITY;
-            let mut hi = f64::NEG_INFINITY;
+            let mut lo = f32::INFINITY;
+            let mut hi = f32::NEG_INFINITY;
             for &v in vals {
                 lo = lo.min(v);
                 hi = hi.max(v);
@@ -277,9 +277,9 @@ fn render_marker_spatial<DB: DrawingBackend>(
 }
 
 fn build_panels(
-    data: &[(String, Vec<f64>)],
-    xs: &[f64],
-    ys: &[f64],
+    data: &[(String, Vec<f32>)],
+    xs: &[f32],
+    ys: &[f32],
     batch: Option<&[i64]>,
 ) -> (Vec<GenePanels>, GeneSegs) {
     let (panels, segs): (Vec<GenePanels>, Option<GeneSegs>) = match batch {
@@ -354,9 +354,9 @@ fn cell_batches(data: &SoData) -> Option<Vec<i64>> {
 }
 
 fn resolve_size(
-    series: &[(String, Vec<f64>)],
-    xs: &[f64],
-    ys: &[f64],
+    series: &[(String, Vec<f32>)],
+    xs: &[f32],
+    ys: &[f32],
     batch: Option<&[i64]>,
     width: Option<u32>,
     height: Option<u32>,
@@ -376,9 +376,9 @@ pub fn plot_marker_spatial(
     title: Option<&str>,
     width: Option<u32>,
     height: Option<u32>,
-    dot_size: Option<f64>,
-    vmin: Option<f64>,
-    vmax: Option<f64>,
+    dot_size: Option<f32>,
+    vmin: Option<f32>,
+    vmax: Option<f32>,
 ) -> anyhow::Result<()> {
     let (series, xs, ys) = prepare_marker_spatial(sd, genes)?;
     let batch = cell_batches(sd);
@@ -405,9 +405,9 @@ pub fn plot_marker_spatial_png(
     title: Option<&str>,
     width: Option<u32>,
     height: Option<u32>,
-    dot_size: Option<f64>,
-    vmin: Option<f64>,
-    vmax: Option<f64>,
+    dot_size: Option<f32>,
+    vmin: Option<f32>,
+    vmax: Option<f32>,
 ) -> anyhow::Result<Vec<u8>> {
     let (series, xs, ys) = prepare_marker_spatial(sd, genes)?;
     let batch = cell_batches(sd);
